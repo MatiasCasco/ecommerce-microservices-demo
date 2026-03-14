@@ -1,0 +1,101 @@
+# =========================
+# JAVA / MAVEN
+# =========================
+
+target/
+*.log
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven wrapper
+.mvn/wrapper/maven-wrapper.jar
+
+# =========================
+# INTELLIJ IDEA
+# =========================
+
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# =========================
+# NETBEANS
+# =========================
+
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# =========================
+# VS CODE
+# =========================
+
+.vscode/
+
+# =========================
+# ECLIPSE
+# =========================
+
+.project
+.classpath
+.settings/
+
+# =========================
+# OS FILES
+# =========================
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# LOG FILES
+# =========================
+
+logs/
+*.log
+
+# =========================
+# ENV FILES
+# =========================
+
+.env
+.env.*
+*.env
+
+# =========================
+# DOCKER
+# =========================
+
+docker-data/
+*.pid
+
+# =========================
+# TEST / COVERAGE
+# =========================
+
+coverage/
+*.lcov
+
+# =========================
+# NODE (por si agregas frontend)
+# =========================
+
+node_modules/
+
+# =========================
+# TEMP FILES
+# =========================
+
+tmp/
+temp/
+*.tmp
