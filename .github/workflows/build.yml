@@ -20,5 +20,22 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Build project
-        run: mvn clean install
+      - name: Build api-gateway
+        run: |
+          cd api-gateway
+          mvn clean install
+
+      - name: Build user-service
+        run: |
+          cd user-service
+          mvn clean install
+
+      - name: Build product-service
+        run: |
+          cd product-service
+          mvn clean install
+
+      - name: Build order-service
+        run: |
+          cd order-service
+          mvn clean install
