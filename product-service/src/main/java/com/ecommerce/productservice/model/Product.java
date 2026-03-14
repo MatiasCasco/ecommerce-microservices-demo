@@ -8,4 +8,5 @@ import lombok.*;
 class ProductDTO {
     private Long id;
     private String name;
+    private String description;
 }
