@@ -12,7 +12,6 @@ on:
       - main
 
 jobs:
-
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -22,7 +21,6 @@ jobs:
       order_service: ${{ steps.filter.outputs.order_service }}
 
     steps:
-
       - uses: actions/checkout@v4
 
       - uses: dorny/paths-filter@v3
@@ -30,13 +28,13 @@ jobs:
         with:
           filters: |
             api_gateway:
-              - 'api-gateway/**'
+              - "api-gateway/**"
             user_service:
-              - 'user-service/**'
+              - "user-service/**"
             product_service:
-              - 'product-service/**'
+              - "product-service/**"
             order_service:
-              - 'order-service/**'
+              - "order-service/**"
 
   build-api-gateway:
     needs: detect-changes
@@ -49,15 +47,15 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
       - uses: actions/cache@v4
         with:
           path: ~/.m2
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-           maven-${{ runner.os }}
-          
+            maven-${{ runner.os }}
+
       - name: Build api-gateway
         run: |
           cd api-gateway
@@ -74,15 +72,15 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
-       - uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: ~/.m2
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-           maven-${{ runner.os }}
-           
+            maven-${{ runner.os }}
+
       - name: Build user-service
         run: |
           cd user-service
@@ -99,15 +97,15 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
-       - uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: ~/.m2
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-           maven-${{ runner.os }}
-          
+            maven-${{ runner.os }}
+
       - name: Build product-service
         run: |
           cd product-service
@@ -124,14 +122,14 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
-       - uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: ~/.m2
           key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
-           maven-${{ runner.os }}
+            maven-${{ runner.os }}
 
       - name: Build order-service
         run: |
