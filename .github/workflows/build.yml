@@ -5,17 +5,41 @@ on:
     branches: [ develop ]
 
 jobs:
-  build:
 
+  detect-changes:
     runs-on: ubuntu-latest
+    outputs:
+      api_gateway: ${{ steps.filter.outputs.api_gateway }}
+      user_service: ${{ steps.filter.outputs.user_service }}
+      product_service: ${{ steps.filter.outputs.product_service }}
+      order_service: ${{ steps.filter.outputs.order_service }}
 
     steps:
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api_gateway:
+              - 'api-gateway/**'
+            user_service:
+              - 'user-service/**'
+            product_service:
+              - 'product-service/**'
+            order_service:
+              - 'order-service/**'
+
+  build-api-gateway:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.api_gateway == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
@@ -25,15 +49,54 @@ jobs:
           cd api-gateway
           mvn clean install
 
+  build-user-service:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.user_service == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Build user-service
         run: |
           cd user-service
           mvn clean install
 
+  build-product-service:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.product_service == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       - name: Build product-service
         run: |
           cd product-service
           mvn clean install
+
+  build-order-service:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.order_service == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
 
       - name: Build order-service
         run: |
