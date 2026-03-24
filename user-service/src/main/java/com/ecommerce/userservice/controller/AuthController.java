@@ -4,6 +4,7 @@ import com.ecommerce.userservice.dto.request.LoginRequest;
 import com.ecommerce.userservice.dto.request.RegisterRequest;
 import com.ecommerce.userservice.dto.response.AuthResponse;
 import com.ecommerce.userservice.service.AuthService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -12,15 +13,9 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
+@Tag(name = "Auth", description = "Endpoints de autenticación")
 public class AuthController {
-/*
-* Cosas pendientes
-* manejar errores con DTO (ErrorResponse) + códigos + timestamps
-* Ver que respuestas mas puede tener mi controller
-* Pensar si es valido agregar cache para la expiracion del tokens
-* Logs y configs y ver si puedo centralizar y analizar
-* Investigar que mas puedo agregar ....
-* */
+
     private final AuthService authService;
 
     @PostMapping("/register")
@@ -37,3 +32,12 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 }
+
+/*
+ * Cosas pendientes
+ * manejar errores con DTO (ErrorResponse) + códigos + timestamps
+ * Ver que respuestas mas puede tener mi controller
+ * Pensar si es valido agregar cache para la expiracion del tokens
+ * Logs y configs y ver si puedo centralizar y analizar
+ * Investigar que mas puedo agregar ....
+ * */
