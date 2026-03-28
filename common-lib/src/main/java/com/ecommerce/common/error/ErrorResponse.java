@@ -1,4 +1,4 @@
-package com.ecommerce.userservice.dto.error;
+package com.ecommerce.common.error;
 
 import lombok.Getter;
 

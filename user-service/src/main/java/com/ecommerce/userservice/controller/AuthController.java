@@ -32,12 +32,3 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 }
-
-/*
- * Cosas pendientes
- * manejar errores con DTO (ErrorResponse) + códigos + timestamps
- * Ver que respuestas mas puede tener mi controller
- * Pensar si es valido agregar cache para la expiracion del tokens
- * Logs y configs y ver si puedo centralizar y analizar
- * Investigar que mas puedo agregar ....
- * */

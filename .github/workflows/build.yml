@@ -20,6 +20,7 @@ jobs:
       product_service: ${{ steps.filter.outputs.product_service }}
       order_service: ${{ steps.filter.outputs.order_service }}
       notification_service: ${{ steps.filter.outputs.notification_service }}
+      common_lib: ${{ steps.filter.outputs.common_lib }}
 
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +29,8 @@ jobs:
         id: filter
         with:
           filters: |
+            common_lib:
+              - "common-lib/**"
             api_gateway:
               - "api-gateway/**"
             user_service:
@@ -41,7 +44,7 @@ jobs:
 
   build-api-gateway:
     needs: detect-changes
-    if: needs.detect-changes.outputs.api_gateway == 'true'
+    if: needs.detect-changes.outputs.api_gateway == 'true' || needs.detect-changes.outputs.common_lib == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -66,7 +69,7 @@ jobs:
 
   build-user-service:
     needs: detect-changes
-    if: needs.detect-changes.outputs.user_service == 'true'
+    if: needs.detect-changes.outputs.user_service == 'true' || needs.detect-changes.outputs.common_lib == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -91,7 +94,7 @@ jobs:
 
   build-product-service:
     needs: detect-changes
-    if: needs.detect-changes.outputs.product_service == 'true'
+    if: needs.detect-changes.outputs.product_service == 'true' || needs.detect-changes.outputs.common_lib == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -116,7 +119,7 @@ jobs:
 
   build-order-service:
     needs: detect-changes
-    if: needs.detect-changes.outputs.order_service == 'true'
+    if: needs.detect-changes.outputs.order_service == 'true' || needs.detect-changes.outputs.common_lib == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -141,7 +144,7 @@ jobs:
           
   build-notification-service:
     needs: detect-changes
-    if: needs.detect-changes.outputs.notification_service == 'true'
+    if: needs.detect-changes.outputs.notification_service == 'true' || needs.detect-changes.outputs.common_lib == 'true'
     runs-on: ubuntu-latest
 
     steps:
