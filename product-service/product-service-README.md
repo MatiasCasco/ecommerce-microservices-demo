@@ -1,7 +1,32 @@
-Describe:
+# 📦 Product Service
 
-endpoints
+## 🧠 Responsibility
+Gestión de productos, precios y stock.
 
-responsabilidades
+---
 
-cómo ejecutarlo individualmente
+## 🔄 Flow
+
+- Consulta de productos
+- Validación de stock
+- Actualización de inventario
+
+---
+
+## 📡 Endpoints
+
+### GET /products
+Listar productos
+
+### GET /products/{id}
+Detalle producto
+
+### POST /products
+Crear producto
+
+---
+
+## ⚙️ Tech
+
+- Spring Boot
+- PostgreSQL
