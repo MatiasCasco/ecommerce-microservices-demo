@@ -64,8 +64,10 @@ jobs:
 
       - name: Build api-gateway
         run: |
-          cd api-gateway
-          mvn -B clean install -DskipTests
+          mvn -B clean install \
+            -pl common-lib,api-gateway \
+            -am \
+            -DskipTests
 
   build-user-service:
     needs: detect-changes
@@ -89,8 +91,10 @@ jobs:
 
       - name: Build user-service
         run: |
-          cd user-service
-          mvn -B clean install -DskipTests
+          mvn -B clean install \
+            -pl common-lib,user-service \
+            -am \
+            -DskipTests
 
   build-product-service:
     needs: detect-changes
@@ -114,8 +118,10 @@ jobs:
 
       - name: Build product-service
         run: |
-          cd product-service
-          mvn -B clean install -DskipTests
+          mvn -B clean install \
+            -pl common-lib,product-service \
+            -am \
+            -DskipTests
 
   build-order-service:
     needs: detect-changes
@@ -139,8 +145,10 @@ jobs:
 
       - name: Build order-service
         run: |
-          cd order-service
-          mvn -B clean install -DskipTests
+          mvn -B clean install \
+            -pl common-lib,order-service \
+            -am \
+            -DskipTests
           
   build-notification-service:
     needs: detect-changes
@@ -164,5 +172,7 @@ jobs:
 
       - name: Build notification-service
         run: |
-          cd notification-service
-          mvn -B clean install -DskipTests
+          mvn -B clean install \
+            -pl common-lib,notification-service \
+            -am \
+            -DskipTests
