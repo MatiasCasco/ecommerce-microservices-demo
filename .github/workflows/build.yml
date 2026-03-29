@@ -19,8 +19,7 @@ jobs:
       user_service: ${{ steps.filter.outputs.user_service }}
       product_service: ${{ steps.filter.outputs.product_service }}
       order_service: ${{ steps.filter.outputs.order_service }}
-      notification_service: ${{ steps.filter.outputs.notification_service }
-      common_lib: ${{ steps.filter.outputs.common_lib }}
+      notification_service: ${{ steps.filter.outputs.notification_service }}
 
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +28,6 @@ jobs:
         id: filter
         with:
           filters: |
-            common_lib:
-              - "common-lib/**"
             api_gateway:
               - "api-gateway/**"
             user_service:
@@ -44,7 +41,7 @@ jobs:
 
   build-api-gateway:
     needs: detect-changes
-    if: needs.detect-changes.outputs.api_gateway == 'true' || needs.detect-changes.outputs.common_lib == 'true'
+    if: needs.detect-changes.outputs.api_gateway == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -64,14 +61,12 @@ jobs:
 
       - name: Build api-gateway
         run: |
-          mvn -B clean install \
-            -pl common-lib,api-gateway \
-            -am \
-            -DskipTests
+          cd api-gateway
+          mvn -B clean install -DskipTests
 
   build-user-service:
     needs: detect-changes
-    if: needs.detect-changes.outputs.user_service == 'true' || needs.detect-changes.outputs.common_lib == 'true'
+    if: needs.detect-changes.outputs.user_service == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -91,14 +86,12 @@ jobs:
 
       - name: Build user-service
         run: |
-          mvn -B clean install \
-            -pl common-lib,user-service \
-            -am \
-            -DskipTests
+          cd user-service
+          mvn -B clean install -DskipTests
 
   build-product-service:
     needs: detect-changes
-    if: needs.detect-changes.outputs.product_service == 'true' || needs.detect-changes.outputs.common_lib == 'true'
+    if: needs.detect-changes.outputs.product_service == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -118,14 +111,12 @@ jobs:
 
       - name: Build product-service
         run: |
-          mvn -B clean install \
-            -pl common-lib,product-service \
-            -am \
-            -DskipTests
+          cd product-service
+          mvn -B clean install -DskipTests
 
   build-order-service:
     needs: detect-changes
-    if: needs.detect-changes.outputs.order_service == 'true' || needs.detect-changes.outputs.common_lib == 'true'
+    if: needs.detect-changes.outputs.order_service == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -145,15 +136,12 @@ jobs:
 
       - name: Build order-service
         run: |
-          mvn -B clean install \
-            -pl common-lib,order-service \
-            -am \
-            -DskipTests
+          cd order-service
+          mvn -B clean install -DskipTests
           
   build-notification-service:
     needs: detect-changes
-    if: needs.detect-changes.outputs.notification_service == 'true' || needs.detect-changes.outputs.common_lib == 'true'
-
+    if: needs.detect-changes.outputs.notification_service == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -173,7 +161,5 @@ jobs:
 
       - name: Build notification-service
         run: |
-          mvn -B clean install \
-            -pl common-lib,notification-service \
-            -am \
-            -DskipTests
+          cd notification-service
+          mvn -B clean install -DskipTests

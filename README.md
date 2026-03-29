@@ -1,24 +1,10 @@
-# 🛒 E-commerce Microservices
+# ecommerce-microservices-demo
+Describe:
 
-## 🏗️ Architecture
+arquitectura
 
-Ver documentación completa en:
+cómo levantar el sistema
 
-👉 /docs
+docker-compose
 
----
-
-## 📦 Services
-
-- user-service
-- product-service
-- order-service
-- notification-service
-- api-gateway
-
----
-
-## 🐳 Run
-
-```bash
-docker-compose up --build
+servicios
