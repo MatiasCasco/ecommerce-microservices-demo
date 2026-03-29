@@ -19,7 +19,7 @@ jobs:
       user_service: ${{ steps.filter.outputs.user_service }}
       product_service: ${{ steps.filter.outputs.product_service }}
       order_service: ${{ steps.filter.outputs.order_service }}
-      notification_service: ${{ steps.filter.outputs.notification_service }
+      notification_service: ${{ steps.filter.outputs.notification_service }}
       common_lib: ${{ steps.filter.outputs.common_lib }}
 
     steps:
