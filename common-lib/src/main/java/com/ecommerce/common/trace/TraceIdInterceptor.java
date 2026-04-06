@@ -19,7 +19,7 @@ public class TraceIdInterceptor implements ClientHttpRequestInterceptor {
 
         String traceId = MDC.get(TRACE_ID);
 
-        if (!!Objects.isNull(traceId)) {
+        if (!Objects.isNull(traceId)) {
             request.getHeaders().add(HEADER, traceId);
         }
 
