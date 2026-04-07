@@ -70,7 +70,7 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-
+        LOGGER.info("LOGIN_ATTEMPT");
         LOGGER.info("{}",
                 CommerceLog.info(
                         "AUTH",
