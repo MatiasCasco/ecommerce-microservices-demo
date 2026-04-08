@@ -16,5 +16,5 @@ public class ProductRequest implements Serializable {
     private String description;
     private BigDecimal price;
     private Integer stock;
-    private String categoryName;
+    private Long categoryId;
 }

@@ -1,6 +1,7 @@
 package com.ecommerce.productservice.domain.entity;
 
 import com.ecommerce.productservice.domain.enums.ProductStatus;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -37,6 +38,7 @@ public class Product {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"}) // Momentaneamente
     private Category category;
 
     @Column(nullable = false, updatable = false)
