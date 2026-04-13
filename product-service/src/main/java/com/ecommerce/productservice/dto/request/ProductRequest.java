@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ProductRequest implements Serializable {
-    private Long id;
+//    private Long id;
     private String name;
     private String description;
     private BigDecimal price;
