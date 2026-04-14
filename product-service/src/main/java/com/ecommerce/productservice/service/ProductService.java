@@ -4,6 +4,7 @@ import com.ecommerce.common.exception.BusinessException;
 import com.ecommerce.productservice.domain.entity.Category;
 import com.ecommerce.productservice.domain.entity.Product;
 import com.ecommerce.productservice.domain.enums.ProductErrorCode;
+import com.ecommerce.productservice.domain.enums.ProductStatus;
 import com.ecommerce.productservice.dto.request.ProductRequest;
 import com.ecommerce.productservice.dto.response.ProductResponse;
 import com.ecommerce.productservice.mapper.ProductMapper;
@@ -32,16 +33,7 @@ public class ProductService {
                         ProductErrorCode.CATEGORY_NOT_FOUND
                 ));
 
-        if (request.getStock() < 0) {
-            throw new BusinessException("Stock cannot be negative", ProductErrorCode.INVALID_STOCK);
-        }
-
-        if (request.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException(
-                    "Price must be greater than zero",
-                    ProductErrorCode.INVALID_PRICE
-            );
-        }
+        validateProduct(request);
 
         Product product = Product.builder()
                 .name(request.getName())
@@ -56,20 +48,89 @@ public class ProductService {
 
     public List<ProductResponse> getAllProducts() {
 
-        return productRepository.findAll()
+        return productRepository.findByStatus(ProductStatus.ACTIVE)
                 .stream()
                 .map(productMapper::toProductResponse)
                 .toList();
     }
 
     public ProductResponse getById(Long id) {
+        Product product = getActiveProduct(id);
+        return productMapper.toProductResponse(product);
+    }
+
+    public ProductResponse updateProduct(Long id, ProductRequest request) {
+
+        Product product = getActiveProduct(id);
+
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new BusinessException(
+                        "Category not found",
+                        ProductErrorCode.CATEGORY_NOT_FOUND
+                ));
+
+        validateProduct(request);
+
+        product.setName(request.getName());
+        product.setDescription(request.getDescription());
+        product.setPrice(request.getPrice());
+        product.setStock(request.getStock());
+        product.setCategory(category);
+
+        return productMapper.toProductResponse(productRepository.save(product));
+    }
+
+    // DELETE (SOFT)
+    public void deleteProduct(Long id) {
+        Product product = getActiveProduct(id);
+
+        product.setStatus(ProductStatus.INACTIVE);
+        productRepository.save(product);
+    }
+
+    public ProductResponse updateStock(Long id, Integer stock) {
+
+        if (stock < 0) {
+            throw new BusinessException(
+                    "Stock cannot be negative",
+                    ProductErrorCode.INVALID_STOCK
+            );
+        }
+
+        Product product = getActiveProduct(id);
+
+        product.setStock(stock);
+
+        return productMapper.toProductResponse(productRepository.save(product));
+    }
+
+
+    private Product getActiveProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(
                         "Product not found",
                         ProductErrorCode.PRODUCT_NOT_FOUND
                 ));
 
-        return productMapper.toProductResponse(product);
+        if (product.getStatus() == ProductStatus.INACTIVE) {
+            throw new BusinessException(
+                    "Product is inactive",
+                    ProductErrorCode.PRODUCT_INACTIVE
+            );
+        }
+
+        return product;
+    }
+
+    private void validateProduct(ProductRequest request) {
+
+        if (request.getStock() < 0) {
+            throw new BusinessException("Stock cannot be negative", ProductErrorCode.INVALID_STOCK);
+        }
+
+        if (request.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException("Price must be greater than zero", ProductErrorCode.INVALID_PRICE);
+        }
     }
 }
 
