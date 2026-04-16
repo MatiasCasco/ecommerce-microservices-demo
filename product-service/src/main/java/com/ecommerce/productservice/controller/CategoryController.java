@@ -2,6 +2,7 @@ package com.ecommerce.productservice.controller;
 
 import com.ecommerce.productservice.domain.entity.Category;
 import com.ecommerce.productservice.repository.CategoryRepository;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -10,6 +11,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/categories")
 @RequiredArgsConstructor
+@SecurityRequirement(name = "bearerAuth")
 public class CategoryController {
 
     private final CategoryRepository categoryRepository;
