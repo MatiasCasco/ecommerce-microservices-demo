@@ -1,5 +1,7 @@
 package com.ecommerce.productservice.config;
 
+import com.ecommerce.productservice.security.CustomAccessDeniedHandler;
+import com.ecommerce.productservice.security.CustomAuthenticationEntryPoint;
 import com.ecommerce.productservice.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -24,6 +26,8 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
+    private final CustomAuthenticationEntryPoint authEntryPoint;
+    private final CustomAccessDeniedHandler accessDeniedHandler;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -48,6 +52,10 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
                 )
                 .authorizeHttpRequests(auth -> auth
 
