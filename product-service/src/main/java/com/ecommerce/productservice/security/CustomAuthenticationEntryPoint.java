@@ -10,11 +10,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -26,10 +28,18 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
 
     private static final String MODULE = "PRODUCT";
     private static final String UNAUTHORIZED = "UNAUTHORIZED";
-
+    private static final String TRACE_ID = "traceId";
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
+
+        String traceId = MDC.get(TRACE_ID);
+        if (traceId == null || traceId.isBlank()) {
+            traceId = UUID.randomUUID().toString();
+            MDC.put(TRACE_ID, traceId);
+        }
+
+
 
         LOGGER.warn("{}",
                 CommerceLog.warn(
