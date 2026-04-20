@@ -25,11 +25,11 @@ public enum ProductErrorCode implements ErrorCode {
 
     @Override
     public int getStatus() {
-        return 0;
+        return status;
     }
 
     @Override
     public String getCode() {
-        return "";
+        return code;
     }
 }

@@ -33,7 +33,6 @@ public class ProductService {
                         ProductErrorCode.CATEGORY_NOT_FOUND
                 ));
 
-        validateProduct(request);
 
         Product product = Product.builder()
                 .name(request.getName())
@@ -69,7 +68,6 @@ public class ProductService {
                         ProductErrorCode.CATEGORY_NOT_FOUND
                 ));
 
-        validateProduct(request);
 
         product.setName(request.getName());
         product.setDescription(request.getDescription());
@@ -122,15 +120,5 @@ public class ProductService {
         return product;
     }
 
-    private void validateProduct(ProductRequest request) {
-
-        if (request.getStock() < 0) {
-            throw new BusinessException("Stock cannot be negative", ProductErrorCode.INVALID_STOCK);
-        }
-
-        if (request.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new BusinessException("Price must be greater than zero", ProductErrorCode.INVALID_PRICE);
-        }
-    }
 }
 

@@ -1,8 +1,12 @@
 package com.ecommerce.productservice.controller;
 
 import com.ecommerce.productservice.domain.entity.Category;
+import com.ecommerce.productservice.dto.request.CategoryRequest;
+import com.ecommerce.productservice.dto.response.CategoryResponse;
 import com.ecommerce.productservice.repository.CategoryRepository;
+import com.ecommerce.productservice.service.CategoryService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,15 +18,15 @@ import java.util.List;
 @SecurityRequirement(name = "bearerAuth")
 public class CategoryController {
 
-    private final CategoryRepository categoryRepository;
+    private final CategoryService categoryService;
 
     @PostMapping
-    public Category create(@RequestBody Category category) {
-        return categoryRepository.save(category);
+    public CategoryResponse create(@Valid @RequestBody CategoryRequest request) {
+        return categoryService.create(request);
     }
 
     @GetMapping
-    public List<Category> findAll() {
-        return categoryRepository.findAll();
+    public List<CategoryResponse> findAll() {
+        return categoryService.findAll();
     }
 }
