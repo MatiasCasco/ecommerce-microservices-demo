@@ -2,7 +2,7 @@ package com.ecommerce.userservice.service;
 
 import com.ecommerce.common.exception.BusinessException;
 import com.ecommerce.common.exception.UnauthorizedException;
-import com.ecommerce.common.util.CommerceLog;
+import com.ecommerce.common.logging.CommerceLog;
 import com.ecommerce.userservice.domain.entity.User;
 import com.ecommerce.userservice.domain.enums.UserErrorCode;
 import com.ecommerce.userservice.dto.request.LoginRequest;
@@ -24,7 +24,6 @@ public class AuthService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AuthService.class);
 
-    // Inyeccion con lombok
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;

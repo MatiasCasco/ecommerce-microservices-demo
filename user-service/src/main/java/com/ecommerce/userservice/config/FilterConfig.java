@@ -1,6 +1,6 @@
-package com.ecommerce.productservice.config;
+package com.ecommerce.userservice.config;
 
-import com.ecommerce.productservice.filter.TraceIdFilter;
+import com.ecommerce.userservice.filter.TraceIdFilter;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
