@@ -2,7 +2,8 @@ package com.ecommerce.productservice.security;
 
 import com.ecommerce.common.error.ErrorResponse;
 import com.ecommerce.common.error.GlobalErrorCode;
-import com.ecommerce.common.util.CommerceLog;
+import com.ecommerce.common.logging.CommerceLog;
+import com.ecommerce.common.trace.TraceConstants;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,15 +29,14 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
 
     private static final String MODULE = "PRODUCT";
     private static final String UNAUTHORIZED = "UNAUTHORIZED";
-    private static final String TRACE_ID = "traceId";
 
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException, ServletException {
 
-        String traceId = MDC.get(TRACE_ID);
+        String traceId = MDC.get(TraceConstants.TRACE_ID);
         if (traceId == null || traceId.isBlank()) {
             traceId = UUID.randomUUID().toString();
-            MDC.put(TRACE_ID, traceId);
+            MDC.put(TraceConstants.TRACE_ID, traceId);
         }
 
 
