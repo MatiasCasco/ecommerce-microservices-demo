@@ -1,6 +1,6 @@
 package com.ecommerce.userservice.config;
 
-import com.ecommerce.common.trace.TraceIdInterceptor;
+import com.ecommerce.userservice.interceptor.TraceIdInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestTemplate;

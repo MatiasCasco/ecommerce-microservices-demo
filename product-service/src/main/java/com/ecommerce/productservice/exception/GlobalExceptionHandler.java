@@ -4,7 +4,7 @@ import com.ecommerce.common.error.ErrorCode;
 import com.ecommerce.common.error.ErrorResponse;
 import com.ecommerce.common.error.GlobalErrorCode;
 import com.ecommerce.common.exception.BaseException;
-import com.ecommerce.common.util.CommerceLog;
+import com.ecommerce.common.logging.CommerceLog;
 import com.ecommerce.productservice.domain.enums.ProductErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -19,6 +19,8 @@ public class GlobalExceptionHandler {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    private static final String COMPONENT = "PRODUCT_SERVICE";
+
     // 1. BusinessException
     @ExceptionHandler(BaseException.class)
     public ResponseEntity<ErrorResponse> handleBusiness(
@@ -27,7 +29,7 @@ public class GlobalExceptionHandler {
     ) {
         LOGGER.warn("{}",
                 CommerceLog.exception(
-                        "PRODUCT",
+                        COMPONENT,
                         ex,
                         request.getRequestURI(),
                         ex.getErrorCode()
@@ -56,7 +58,7 @@ public class GlobalExceptionHandler {
 
         LOGGER.warn("{}",
                 CommerceLog.warn(
-                        "PRODUCT",
+                        COMPONENT,
                         "VALIDATION_ERROR",
                         message,
                         request.getRequestURI()
@@ -79,7 +81,7 @@ public class GlobalExceptionHandler {
 
         LOGGER.warn("{}",
                 CommerceLog.warn(
-                        "PRODUCT",
+                        COMPONENT,
                         "ILLEGAL_ARGUMENT",
                         ex.getMessage(),
                         request.getRequestURI()
@@ -101,7 +103,7 @@ public class GlobalExceptionHandler {
     ) {
         LOGGER.error("{}",
                 CommerceLog.error(
-                        "PRODUCT",
+                        COMPONENT,
                         "UNEXPECTED_ERROR",
                         ex.getMessage(),
                         request.getRequestURI()

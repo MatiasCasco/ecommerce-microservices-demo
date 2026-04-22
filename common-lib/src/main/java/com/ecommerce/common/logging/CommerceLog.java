@@ -1,4 +1,4 @@
-package com.ecommerce.common.util;
+package com.ecommerce.common.logging;
 
 import java.util.Map;
 import java.util.StringJoiner;
@@ -34,7 +34,6 @@ public class CommerceLog {
 
             String traceId = MDC.get("traceId");
 
-            if (traceId != null) joiner.add("traceId=" + traceId);
             if (module != null) joiner.add("module=" + module);
             if (event != null) joiner.add("event=" + event);
             if (message != null) joiner.add("message=" + message);

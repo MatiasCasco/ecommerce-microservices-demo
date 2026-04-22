@@ -1,5 +1,6 @@
-package com.ecommerce.common.trace;
+package com.ecommerce.userservice.interceptor;
 
+import com.ecommerce.common.trace.TraceConstants;
 import org.slf4j.MDC;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
@@ -11,16 +12,14 @@ import java.util.Objects;
 
 public class TraceIdInterceptor implements ClientHttpRequestInterceptor {
 
-    private static final String TRACE_ID = "traceId";
-    private static final String HEADER = "X-Trace-Id";
 
     @Override
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
 
-        String traceId = MDC.get(TRACE_ID);
+        String traceId = MDC.get(TraceConstants.TRACE_ID);
 
         if (!Objects.isNull(traceId)) {
-            request.getHeaders().add(HEADER, traceId);
+            request.getHeaders().add(TraceConstants.HEADER, traceId);
         }
 
         return execution.execute(request, body);
