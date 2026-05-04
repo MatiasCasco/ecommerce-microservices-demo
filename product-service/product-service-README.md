@@ -1,63 +1,81 @@
 # 📦 Product Service
 
 ## 🧠 Responsibility
-Gestión de productos, precios y stock dentro del sistema e-commerce.
+Manages products, pricing, and stock within the e-commerce system.
 
 ---
 
 ## 🔄 Flow
 
-- Consulta de productos disponibles
-- Creación y actualización de productos (admin)
-- Validación de stock
-- Actualización de inventario
+- Retrieve available products
+- Create and update products (admin)
+- Validate stock
+- Update inventory
+
+### Product Status Lifecycle
+
+- ACTIVE → visible and purchasable
+- INACTIVE → hidden and not purchasable
 
 ---
 
 ## 📡 Endpoints
 
 ### GET /products
-Listar productos
+List all ACTIVE products
 
 ### GET /products/{id}
-Detalle producto
+Get product details
 
 ### POST /products
-Crear producto
+Create a new product
 
 ### PUT /products/{id}
-Actualizar producto
+Update product information
 
-### DELETE /products/{id}
-Eliminar producto
+### PATCH /products/{id}/activate
+Activate product
+
+### PATCH /products/{id}/deactivate
+Deactivate product
 
 ### PATCH /products/{id}/stock
-Actualizar stock
+Update product stock
 
 ---
 
 ## 🔐 Security
 
-- Protección mediante JWT
-- Integración con el user-service
+- JWT-based authentication
+- Integrated with user-service
 - Roles:
-  - ROLE_ADMIN → gestión de productos
-  - ROLE_USER → solo lectura
+    - ROLE_ADMIN → product management
+    - ROLE_USER → read-only access
+
+---
+
+## 📡 Events
+
+Publishes domain events:
+
+- ProductCreated
+- ProductUpdated
+- ProductActivated
+- ProductDeactivated
 
 ---
 
 ## 🔗 Integrations
 
-- Consumido por futuros servicios:
-  - order-service → validación de stock
-- Preparado para eventos (ej: actualización de stock vía RabbitMQ)
+- Consumed by:
+    - order-service → stock and availability validation
 
 ---
 
 ## ⚠️ Error Handling
 
-- Manejo centralizado de errores
-- Validaciones de negocio (ej: stock no negativo)
+- Centralized error handling
+- Business validations (e.g. non-negative stock)
 
 ---
 
@@ -66,4 +84,4 @@ Actualizar stock
 - Spring Boot
 - PostgreSQL
 - Spring Security (JWT)
-- (Futuro) RabbitMQ
+- RabbitMQ (planned)
