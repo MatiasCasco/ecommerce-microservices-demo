@@ -40,6 +40,7 @@ public class ProductService {
                 .price(request.getPrice())
                 .stock(request.getStock())
                 .category(category)
+                .status(ProductStatus.ACTIVE)
                 .build();
 
         return productMapper.toProductResponse(productRepository.save(product));
@@ -54,13 +55,13 @@ public class ProductService {
     }
 
     public ProductResponse getById(Long id) {
-        Product product = getActiveProduct(id);
+        Product product = getProductById(id);
         return productMapper.toProductResponse(product);
     }
 
     public ProductResponse updateProduct(Long id, ProductRequest request) {
 
-        Product product = getActiveProduct(id);
+        Product product = getProductById(id);
 
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new BusinessException(
@@ -78,11 +79,35 @@ public class ProductService {
         return productMapper.toProductResponse(productRepository.save(product));
     }
 
-    // DELETE (SOFT)
-    public void deleteProduct(Long id) {
-        Product product = getActiveProduct(id);
+    public void deactivateProduct(Long id) {
+
+        Product product = getProductById(id);
+
+        if (product.getStatus() == ProductStatus.INACTIVE) {
+            throw new BusinessException(
+                    "Product is already inactive",
+                    ProductErrorCode.PRODUCT_INACTIVE
+            );
+        }
 
         product.setStatus(ProductStatus.INACTIVE);
+        productRepository.save(product);
+    }
+
+    public void activateProduct(Long id) {
+
+        Product product = getProductById(id);
+
+        if (product.getStatus() == ProductStatus.ACTIVE) {
+            throw new BusinessException(
+                    "Product is already active",
+                    ProductErrorCode.PRODUCT_ALREADY_ACTIVE
+            );
+        }
+
+        validateProductForActivation(product);
+
+        product.setStatus(ProductStatus.ACTIVE);
         productRepository.save(product);
     }
 
@@ -95,7 +120,8 @@ public class ProductService {
             );
         }
 
-        Product product = getActiveProduct(id);
+        Product product = getProductById(id);
+        validateProductIsActive(product);
 
         product.setStock(stock);
 
@@ -103,21 +129,38 @@ public class ProductService {
     }
 
 
-    private Product getActiveProduct(Long id) {
-        Product product = productRepository.findById(id)
+    private void validateProductForActivation(Product product) {
+
+        if (product.getPrice() == null || product.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(
+                    "Invalid price",
+                    ProductErrorCode.INVALID_PRICE
+            );
+        }
+
+        if (product.getName() == null || product.getName().isBlank()) {
+            throw new BusinessException(
+                    "Invalid name",
+                    ProductErrorCode.INVALID_PRODUCT_NAME
+            );
+        }
+    }
+
+    private Product getProductById(Long id) {
+        return productRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(
                         "Product not found",
                         ProductErrorCode.PRODUCT_NOT_FOUND
                 ));
+    }
 
+    private void validateProductIsActive(Product product) {
         if (product.getStatus() == ProductStatus.INACTIVE) {
             throw new BusinessException(
                     "Product is inactive",
                     ProductErrorCode.PRODUCT_INACTIVE
             );
         }
-
-        return product;
     }
 
 }
