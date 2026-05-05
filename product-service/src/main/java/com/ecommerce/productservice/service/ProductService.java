@@ -5,6 +5,7 @@ import com.ecommerce.productservice.domain.entity.Category;
 import com.ecommerce.productservice.domain.entity.Product;
 import com.ecommerce.productservice.domain.enums.ProductErrorCode;
 import com.ecommerce.productservice.domain.enums.ProductStatus;
+import com.ecommerce.productservice.dto.request.ProductFilter;
 import com.ecommerce.productservice.dto.request.ProductRequest;
 import com.ecommerce.productservice.dto.response.ProductResponse;
 import com.ecommerce.productservice.mapper.ProductMapper;
@@ -12,6 +13,7 @@ import com.ecommerce.productservice.repository.CategoryRepository;
 import com.ecommerce.productservice.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -46,16 +48,33 @@ public class ProductService {
         return productMapper.toProductResponse(productRepository.save(product));
     }
 
-    public List<ProductResponse> getAllProducts() {
+    public List<ProductResponse> getAllProducts(ProductFilter filter) {
+        List<Product> products;
+        if (isAdmin()) {
+            products = productRepository.findAll(); // luego filtramos
+        } else {
+            products = productRepository.findByStatus(ProductStatus.ACTIVE);
+        }
 
-        return productRepository.findByStatus(ProductStatus.ACTIVE)
-                .stream()
+        return products.stream()
+                .filter(p -> filter.getName() == null || p.getName().toLowerCase().contains(filter.getName().toLowerCase()))
+                .filter(p -> filter.getMinPrice() == null || p.getPrice().compareTo(filter.getMinPrice()) >= 0)
+                .filter(p -> filter.getMaxPrice() == null || p.getPrice().compareTo(filter.getMaxPrice()) <= 0)
+                .filter(p -> filter.getStatus() == null || p.getStatus() == filter.getStatus())
                 .map(productMapper::toProductResponse)
                 .toList();
     }
 
     public ProductResponse getById(Long id) {
         Product product = getProductById(id);
+
+        if (isUser() && product.getStatus() == ProductStatus.INACTIVE) {
+            throw new BusinessException(
+                    "Product not available",
+                    ProductErrorCode.PRODUCT_NOT_FOUND
+            );
+        }
+
         return productMapper.toProductResponse(product);
     }
 
@@ -161,6 +180,21 @@ public class ProductService {
                     ProductErrorCode.PRODUCT_INACTIVE
             );
         }
+    }
+
+    private boolean hasRole(String role) {
+        return SecurityContextHolder.getContext().getAuthentication()
+                .getAuthorities()
+                .stream()
+                .anyMatch(a -> a.getAuthority().equals(role));
+    }
+
+    private boolean isAdmin() {
+        return hasRole("ROLE_ADMIN");
+    }
+
+    private boolean isUser() {
+        return hasRole("ROLE_USER");
     }
 
 }
