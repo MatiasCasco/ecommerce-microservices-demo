@@ -5,6 +5,7 @@ import com.ecommerce.productservice.domain.entity.Category;
 import com.ecommerce.productservice.domain.entity.Product;
 import com.ecommerce.productservice.domain.enums.ProductErrorCode;
 import com.ecommerce.productservice.domain.enums.ProductStatus;
+import com.ecommerce.productservice.domain.specification.ProductSpecification;
 import com.ecommerce.productservice.dto.request.ProductFilter;
 import com.ecommerce.productservice.dto.request.ProductRequest;
 import com.ecommerce.productservice.dto.response.ProductResponse;
@@ -13,6 +14,9 @@ import com.ecommerce.productservice.repository.CategoryRepository;
 import com.ecommerce.productservice.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -48,21 +52,13 @@ public class ProductService {
         return productMapper.toProductResponse(productRepository.save(product));
     }
 
-    public List<ProductResponse> getAllProducts(ProductFilter filter) {
-        List<Product> products;
-        if (isAdmin()) {
-            products = productRepository.findAll(); // luego filtramos
-        } else {
-            products = productRepository.findByStatus(ProductStatus.ACTIVE);
-        }
+    public Page<ProductResponse> getAllProducts(ProductFilter filter, Pageable pageable) {
+        boolean admin = isAdmin();
 
-        return products.stream()
-                .filter(p -> filter.getName() == null || p.getName().toLowerCase().contains(filter.getName().toLowerCase()))
-                .filter(p -> filter.getMinPrice() == null || p.getPrice().compareTo(filter.getMinPrice()) >= 0)
-                .filter(p -> filter.getMaxPrice() == null || p.getPrice().compareTo(filter.getMaxPrice()) <= 0)
-                .filter(p -> filter.getStatus() == null || p.getStatus() == filter.getStatus())
-                .map(productMapper::toProductResponse)
-                .toList();
+        Specification<Product> spec = ProductSpecification.withFilters(filter, admin);
+
+        return productRepository.findAll(spec, pageable)
+                .map(productMapper::toProductResponse);
     }
 
     public ProductResponse getById(Long id) {
