@@ -2,6 +2,7 @@ package com.ecommerce.productservice.controller;
 
 import com.ecommerce.productservice.domain.entity.Category;
 import com.ecommerce.productservice.domain.entity.Product;
+import com.ecommerce.productservice.dto.request.ProductFilter;
 import com.ecommerce.productservice.dto.request.ProductRequest;
 import com.ecommerce.productservice.dto.response.ProductResponse;
 import com.ecommerce.productservice.service.ProductService;
@@ -28,8 +29,8 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductResponse> findAll() {
-        return productService.getAllProducts();
+    public List<ProductResponse> findAll(ProductFilter filter) {
+        return productService.getAllProducts(filter);
     }
 
     @GetMapping("/{id}")
