@@ -5,6 +5,8 @@ import com.ecommerce.productservice.domain.entity.Category;
 import com.ecommerce.productservice.domain.entity.Product;
 import com.ecommerce.productservice.domain.enums.ProductErrorCode;
 import com.ecommerce.productservice.domain.enums.ProductStatus;
+import com.ecommerce.productservice.domain.specification.ProductSpecification;
+import com.ecommerce.productservice.dto.request.ProductFilter;
 import com.ecommerce.productservice.dto.request.ProductRequest;
 import com.ecommerce.productservice.dto.response.ProductResponse;
 import com.ecommerce.productservice.mapper.ProductMapper;
@@ -12,6 +14,10 @@ import com.ecommerce.productservice.repository.CategoryRepository;
 import com.ecommerce.productservice.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -40,27 +46,37 @@ public class ProductService {
                 .price(request.getPrice())
                 .stock(request.getStock())
                 .category(category)
+                .status(ProductStatus.ACTIVE)
                 .build();
 
         return productMapper.toProductResponse(productRepository.save(product));
     }
 
-    public List<ProductResponse> getAllProducts() {
+    public Page<ProductResponse> getAllProducts(ProductFilter filter, Pageable pageable) {
+        boolean admin = isAdmin();
 
-        return productRepository.findByStatus(ProductStatus.ACTIVE)
-                .stream()
-                .map(productMapper::toProductResponse)
-                .toList();
+        Specification<Product> spec = ProductSpecification.withFilters(filter, admin);
+
+        return productRepository.findAll(spec, pageable)
+                .map(productMapper::toProductResponse);
     }
 
     public ProductResponse getById(Long id) {
-        Product product = getActiveProduct(id);
+        Product product = getProductById(id);
+
+        if (isUser() && product.getStatus() == ProductStatus.INACTIVE) {
+            throw new BusinessException(
+                    "Product not available",
+                    ProductErrorCode.PRODUCT_NOT_FOUND
+            );
+        }
+
         return productMapper.toProductResponse(product);
     }
 
     public ProductResponse updateProduct(Long id, ProductRequest request) {
 
-        Product product = getActiveProduct(id);
+        Product product = getProductById(id);
 
         Category category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new BusinessException(
@@ -78,11 +94,35 @@ public class ProductService {
         return productMapper.toProductResponse(productRepository.save(product));
     }
 
-    // DELETE (SOFT)
-    public void deleteProduct(Long id) {
-        Product product = getActiveProduct(id);
+    public void deactivateProduct(Long id) {
+
+        Product product = getProductById(id);
+
+        if (product.getStatus() == ProductStatus.INACTIVE) {
+            throw new BusinessException(
+                    "Product is already inactive",
+                    ProductErrorCode.PRODUCT_INACTIVE
+            );
+        }
 
         product.setStatus(ProductStatus.INACTIVE);
+        productRepository.save(product);
+    }
+
+    public void activateProduct(Long id) {
+
+        Product product = getProductById(id);
+
+        if (product.getStatus() == ProductStatus.ACTIVE) {
+            throw new BusinessException(
+                    "Product is already active",
+                    ProductErrorCode.PRODUCT_ALREADY_ACTIVE
+            );
+        }
+
+        validateProductForActivation(product);
+
+        product.setStatus(ProductStatus.ACTIVE);
         productRepository.save(product);
     }
 
@@ -95,7 +135,8 @@ public class ProductService {
             );
         }
 
-        Product product = getActiveProduct(id);
+        Product product = getProductById(id);
+        validateProductIsActive(product);
 
         product.setStock(stock);
 
@@ -103,21 +144,53 @@ public class ProductService {
     }
 
 
-    private Product getActiveProduct(Long id) {
-        Product product = productRepository.findById(id)
+    private void validateProductForActivation(Product product) {
+
+        if (product.getPrice() == null || product.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(
+                    "Invalid price",
+                    ProductErrorCode.INVALID_PRICE
+            );
+        }
+
+        if (product.getName() == null || product.getName().isBlank()) {
+            throw new BusinessException(
+                    "Invalid name",
+                    ProductErrorCode.INVALID_PRODUCT_NAME
+            );
+        }
+    }
+
+    private Product getProductById(Long id) {
+        return productRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(
                         "Product not found",
                         ProductErrorCode.PRODUCT_NOT_FOUND
                 ));
+    }
 
+    private void validateProductIsActive(Product product) {
         if (product.getStatus() == ProductStatus.INACTIVE) {
             throw new BusinessException(
                     "Product is inactive",
                     ProductErrorCode.PRODUCT_INACTIVE
             );
         }
+    }
 
-        return product;
+    private boolean hasRole(String role) {
+        return SecurityContextHolder.getContext().getAuthentication()
+                .getAuthorities()
+                .stream()
+                .anyMatch(a -> a.getAuthority().equals(role));
+    }
+
+    private boolean isAdmin() {
+        return hasRole("ROLE_ADMIN");
+    }
+
+    private boolean isUser() {
+        return hasRole("ROLE_USER");
     }
 
 }

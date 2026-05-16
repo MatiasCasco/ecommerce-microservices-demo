@@ -2,12 +2,19 @@ package com.ecommerce.productservice.controller;
 
 import com.ecommerce.productservice.domain.entity.Category;
 import com.ecommerce.productservice.domain.entity.Product;
+import com.ecommerce.productservice.dto.request.ProductFilter;
 import com.ecommerce.productservice.dto.request.ProductRequest;
 import com.ecommerce.productservice.dto.response.ProductResponse;
 import com.ecommerce.productservice.service.ProductService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,8 +33,16 @@ public class ProductController {
     }
 
     @GetMapping
-    public List<ProductResponse> findAll() {
-        return productService.getAllProducts();
+    public Page<ProductResponse> findAll(
+            @ModelAttribute  ProductFilter filter,
+            @PageableDefault(
+                    page = 0,
+                    size = 100,
+                    sort = "id",
+                    direction = Sort.Direction.ASC
+            ) Pageable pageable
+            ) {
+        return productService.getAllProducts(filter,  pageable);
     }
 
     @GetMapping("/{id}")
@@ -43,16 +58,25 @@ public class ProductController {
         return productService.updateProduct(id, request);
     }
 
-    @DeleteMapping("/{id}")
-    public void delete(@PathVariable Long id) {
-        productService.deleteProduct(id);
-    }
-
     @PatchMapping("/{id}/stock")
     public ProductResponse updateStock(
             @PathVariable Long id,
             @RequestParam Integer stock
     ) {
         return productService.updateStock(id, stock);
+    }
+
+    @PatchMapping("/{id}/activate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> activateProduct(@PathVariable Long id) {
+        productService.activateProduct(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/deactivate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deactivateProduct(@PathVariable Long id) {
+        productService.deactivateProduct(id);
+        return ResponseEntity.noContent().build();
     }
 }

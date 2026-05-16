@@ -33,6 +33,7 @@ public class Product {
     @Column(nullable = false)
     private Integer stock;
 
+    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private ProductStatus status;
 
@@ -47,6 +48,5 @@ public class Product {
     @PrePersist
     public void prePersist() {
         this.createdAt = LocalDateTime.now();
-        this.status = ProductStatus.ACTIVE;
     }
 }
