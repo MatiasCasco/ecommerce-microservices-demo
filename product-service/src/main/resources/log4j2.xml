@@ -17,8 +17,8 @@
 
         <!-- Archivo con rotación -->
         <RollingFile name="File"
-                     fileName="${LOG_PATH}/user-service/product-service.log"
-                     filePattern="${LOG_PATH}/user-service/product-service-%d{yyyy-MM-dd}.log">
+                     fileName="${LOG_PATH}/product-service/product-service.log"
+                     filePattern="${LOG_PATH}/product-service/product-service-%d{yyyy-MM-dd}.log">
 
             <PatternLayout pattern="${LOG_PATTERN}"/>
 
@@ -34,13 +34,13 @@
     <Loggers>
 
         <!-- Spring Web -->
-        <Logger name="org.springframework.web" level="debug" additivity="false">
+        <Logger name="org.springframework.web" level="info" additivity="false">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="File"/>
         </Logger>
 
         <!-- Tu código -->
-        <Logger name="com.ecommerce" level="debug" additivity="false">
+        <Logger name="com.ecommerce" level="info" additivity="false">
             <AppenderRef ref="Console"/>
             <AppenderRef ref="File"/>
         </Logger>
