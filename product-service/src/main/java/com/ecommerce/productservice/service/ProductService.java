@@ -9,6 +9,9 @@ import com.ecommerce.productservice.domain.specification.ProductSpecification;
 import com.ecommerce.productservice.dto.request.ProductFilter;
 import com.ecommerce.productservice.dto.request.ProductRequest;
 import com.ecommerce.productservice.dto.response.ProductResponse;
+import com.ecommerce.productservice.event.factory.ProductEventFactory;
+import com.ecommerce.productservice.event.model.*;
+import com.ecommerce.productservice.event.publisher.ProductEventPublisher;
 import com.ecommerce.productservice.mapper.ProductMapper;
 import com.ecommerce.productservice.repository.CategoryRepository;
 import com.ecommerce.productservice.repository.ProductRepository;
@@ -27,29 +30,25 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ProductService {
 
+    private final ProductEventPublisher eventPublisher;
+    private final ProductEventFactory  eventFactory;
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
     private final ProductMapper productMapper;
 
     public ProductResponse createProduct(ProductRequest request) {
 
-        Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new BusinessException(
-                        "Category not found",
-                        ProductErrorCode.CATEGORY_NOT_FOUND
-                ));
+        Category category = findCategory(request);
 
+        Product product = buildProduct(request, category);
 
-        Product product = Product.builder()
-                .name(request.getName())
-                .description(request.getDescription())
-                .price(request.getPrice())
-                .stock(request.getStock())
-                .category(category)
-                .status(ProductStatus.ACTIVE)
-                .build();
+        Product productSaved = productRepository.save(product);
 
-        return productMapper.toProductResponse(productRepository.save(product));
+        ProductCreatedEvent event = eventFactory.buildProductCreatedEvent(productSaved);
+
+        eventPublisher.publish(event);
+
+        return productMapper.toProductResponse(productSaved);
     }
 
     public Page<ProductResponse> getAllProducts(ProductFilter filter, Pageable pageable) {
@@ -78,69 +77,73 @@ public class ProductService {
 
         Product product = getProductById(id);
 
-        Category category = categoryRepository.findById(request.getCategoryId())
-                .orElseThrow(() -> new BusinessException(
-                        "Category not found",
-                        ProductErrorCode.CATEGORY_NOT_FOUND
-                ));
+        Category category = findCategory(request);
 
 
-        product.setName(request.getName());
-        product.setDescription(request.getDescription());
-        product.setPrice(request.getPrice());
-        product.setStock(request.getStock());
-        product.setCategory(category);
+        updateProductFields(request, product, category);
 
-        return productMapper.toProductResponse(productRepository.save(product));
+        Product updatedProduct = productRepository.save(product);
+
+        ProductUpdatedEvent event = eventFactory.buildProductUpdatedEvent(updatedProduct);
+
+        eventPublisher.publish(event);
+
+        return productMapper.toProductResponse(updatedProduct);
     }
+
+
 
     public void deactivateProduct(Long id) {
 
         Product product = getProductById(id);
 
-        if (product.getStatus() == ProductStatus.INACTIVE) {
-            throw new BusinessException(
-                    "Product is already inactive",
-                    ProductErrorCode.PRODUCT_INACTIVE
-            );
-        }
+        validateProductIsActive(product);
 
         product.setStatus(ProductStatus.INACTIVE);
-        productRepository.save(product);
+
+        Product updatedProduct = productRepository.save(product);
+
+        ProductDeactivatedEvent event = eventFactory.buildProductDeactivatedEvent(updatedProduct);
+
+        eventPublisher.publish(event);
+
     }
 
     public void activateProduct(Long id) {
 
         Product product = getProductById(id);
 
-        if (product.getStatus() == ProductStatus.ACTIVE) {
-            throw new BusinessException(
-                    "Product is already active",
-                    ProductErrorCode.PRODUCT_ALREADY_ACTIVE
-            );
-        }
+        validateProductIsInactive(product);
 
         validateProductForActivation(product);
 
         product.setStatus(ProductStatus.ACTIVE);
-        productRepository.save(product);
+
+        Product updatedProduct = productRepository.save(product);
+
+        ProductActivatedEvent event = eventFactory.buildProductActivatedEvent(updatedProduct);
+
+        eventPublisher.publish(event);
+
     }
 
     public ProductResponse updateStock(Long id, Integer stock) {
 
-        if (stock < 0) {
-            throw new BusinessException(
-                    "Stock cannot be negative",
-                    ProductErrorCode.INVALID_STOCK
-            );
-        }
+        validateStock(stock);
 
         Product product = getProductById(id);
+
         validateProductIsActive(product);
 
         product.setStock(stock);
 
-        return productMapper.toProductResponse(productRepository.save(product));
+        Product  updatedProduct = productRepository.save(product);
+
+        ProductStockUpdatedEvent event = eventFactory.buildProductStockUpdatedEvent(updatedProduct);
+
+        eventPublisher.publish(event);
+
+        return productMapper.toProductResponse(updatedProduct);
     }
 
 
@@ -172,7 +175,7 @@ public class ProductService {
     private void validateProductIsActive(Product product) {
         if (product.getStatus() == ProductStatus.INACTIVE) {
             throw new BusinessException(
-                    "Product is inactive",
+                    "Product is already inactive",
                     ProductErrorCode.PRODUCT_INACTIVE
             );
         }
@@ -191,6 +194,53 @@ public class ProductService {
 
     private boolean isUser() {
         return hasRole("ROLE_USER");
+    }
+
+    private Category findCategory(ProductRequest request) {
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new BusinessException(
+                        "Category not found",
+                        ProductErrorCode.CATEGORY_NOT_FOUND
+                ));
+        return category;
+    }
+
+    private Product buildProduct(ProductRequest request, Category category) {
+        Product product = Product.builder()
+                .name(request.getName())
+                .description(request.getDescription())
+                .price(request.getPrice())
+                .stock(request.getStock())
+                .category(category)
+                .status(ProductStatus.ACTIVE)
+                .build();
+        return product;
+    }
+
+    private void updateProductFields(ProductRequest request, Product product, Category category) {
+        product.setName(request.getName());
+        product.setDescription(request.getDescription());
+        product.setPrice(request.getPrice());
+        product.setStock(request.getStock());
+        product.setCategory(category);
+    }
+
+    private void validateProductIsInactive(Product product) {
+        if (product.getStatus() == ProductStatus.ACTIVE) {
+            throw new BusinessException(
+                    "Product is already active",
+                    ProductErrorCode.PRODUCT_ALREADY_ACTIVE
+            );
+        }
+    }
+
+    private static void validateStock(Integer stock) {
+        if (stock < 0) {
+            throw new BusinessException(
+                    "Stock cannot be negative",
+                    ProductErrorCode.INVALID_STOCK
+            );
+        }
     }
 
 }
