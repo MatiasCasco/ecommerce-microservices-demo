@@ -15,7 +15,8 @@ public enum ProductErrorCode implements ErrorCode {
 
     PRODUCT_INACTIVE(403, "PRODUCT_INACTIVE"),
     PRODUCT_ALREADY_ACTIVE(409, "PRODUCT_ALREADY_ACTIVE"),
-    INVALID_INPUT(400, "INVALID_INPUT");
+    INVALID_INPUT(400, "INVALID_INPUT"),
+    INVALID_PRODUCT_STATUS(400, "INVALID_PRODUCT_STATUS");
 
     private final int status;
     private final String code;
