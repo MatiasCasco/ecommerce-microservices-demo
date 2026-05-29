@@ -1,12 +1,14 @@
 package com.ecommerce.productservice.event.model;
 
+import com.ecommerce.productservice.event.constants.EventRoutingKey;
+import com.ecommerce.productservice.event.constants.EventType;
+
 public class ProductStockUpdatedEvent extends ProductEvent {
 
     private Integer stock;
 
-    @Override
-    public String getEventType() {
-        return "PRODUCT_STOCK_UPDATED";
+    public ProductStockUpdatedEvent() {
+        super(EventType.PRODUCT_STOCK_UPDATED);
     }
 
     public Integer getStock() {
@@ -15,5 +17,10 @@ public class ProductStockUpdatedEvent extends ProductEvent {
 
     public void setStock(Integer stock) {
         this.stock = stock;
+    }
+
+    @Override
+    public String getRoutingKey() {
+        return EventRoutingKey.PRODUCT_STOCK_UPDATED;
     }
 }

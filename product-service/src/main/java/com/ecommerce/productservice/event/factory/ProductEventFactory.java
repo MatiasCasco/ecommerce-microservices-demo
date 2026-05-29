@@ -4,8 +4,6 @@ import com.ecommerce.productservice.domain.entity.Product;
 import com.ecommerce.productservice.event.model.*;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Component
 public class ProductEventFactory {
@@ -14,10 +12,7 @@ public class ProductEventFactory {
 
         ProductCreatedEvent event = new ProductCreatedEvent();
 
-        event.setEventId(UUID.randomUUID());
-        event.setOccurredAt(LocalDateTime.now());
-        event.setProductId(product.getId());
-
+        event.setAggregateId(product.getId());
         event.setName(product.getName());
         event.setDescription(product.getDescription());
         event.setPrice(product.getPrice());
@@ -29,10 +24,7 @@ public class ProductEventFactory {
 
         ProductUpdatedEvent event = new ProductUpdatedEvent();
 
-        event.setEventId(UUID.randomUUID());
-        event.setOccurredAt(LocalDateTime.now());
-        event.setProductId(product.getId());
-
+        event.setAggregateId(product.getId());
         event.setName(product.getName());
         event.setDescription(product.getDescription());
         event.setPrice(product.getPrice());
@@ -44,10 +36,7 @@ public class ProductEventFactory {
 
         ProductDeactivatedEvent event = new ProductDeactivatedEvent();
 
-        event.setEventId(UUID.randomUUID());
-        event.setOccurredAt(LocalDateTime.now());
-        event.setProductId(product.getId());
-
+        event.setAggregateId(product.getId());
         event.setName(product.getName());
 
         return event;
@@ -58,10 +47,7 @@ public class ProductEventFactory {
 
         ProductActivatedEvent event = new ProductActivatedEvent();
 
-        event.setEventId(UUID.randomUUID());
-        event.setOccurredAt(LocalDateTime.now());
-        event.setProductId(product.getId());
-
+        event.setAggregateId(product.getId());
         event.setName(product.getName());
 
         return event;
@@ -72,11 +58,7 @@ public class ProductEventFactory {
 
         ProductStockUpdatedEvent event = new ProductStockUpdatedEvent();
 
-        event.setEventId(UUID.randomUUID());
-
-        event.setOccurredAt(LocalDateTime.now());
-
-        event.setProductId(product.getId());
+        event.setAggregateId(product.getId());
 
         event.setStock(product.getStock());
 
