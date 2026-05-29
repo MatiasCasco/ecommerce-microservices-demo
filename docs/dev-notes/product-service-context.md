@@ -1,41 +1,56 @@
-Proyecto: ecommerce-microservices-demo
+# ecommerce-microservices-demo
 
-Stack:
-- Java / Spring Boot
-- JWT (ROLE_USER / ROLE_ADMIN)
+## Stack actual
+
+- Java 21
+- Spring Boot 3
+- Spring Security + JWT
+- PostgreSQL
+- Spring Data JPA
+- Specification API
+- Pageable + Sorting
+- Log4j2
 - Arquitectura de microservicios
+- Event-Driven Architecture (fase inicial)
 - Logging estructurado + traceId
-- JPA + Specification + Pageable
+- common-lib compartida
 
-Estado actual:
+---
 
-✔ product-service:
-- CRUD completo
-- Soft delete reemplazado por ACTIVE / INACTIVE
-- Endpoints:
-    - activate / deactivate
-- Filtros dinámicos con Specification
-- Paginación y sorting funcionando
-- Control por roles (ADMIN / USER)
-- GET /products → solo ACTIVE para USER
+# Estado actual del proyecto
 
-✔ README actualizado
+## product-service
 
-✔ Buenas prácticas aplicadas:
-- Separación lógica negocio vs entidad
-- Pageable + sort correcto
-- Validaciones de dominio
+Actualmente implementado:
 
-Pendiente actual:
+### Seguridad
 
-👉 Implementar event-driven (fase inicial SIN RabbitMQ):
-- ProductEventPublisher (fake)
-- Eventos:
-    - ProductCreated
-    - ProductUpdated
-    - ProductActivated
-    - ProductDeactivated
+- JWT Authentication
+- ROLE_ADMIN / ROLE_USER
+- CustomAuthenticationEntryPoint
+- CustomAccessDeniedHandler
+- TraceIdFilter integrado en SecurityFilterChain
 
-Objetivo:
+---
 
-👉 Implementar eventos correctamente antes de avanzar a RabbitMQ y order-service
+### Logging y observabilidad
+
+Implementado:
+
+- CommerceLog
+- traceId con MDC
+- logs estructurados
+- ProductEventPublisher con logging estructurado
+- eventId y traceId diferenciados
+- configuración Log4j2 custom
+- rolling logs
+
+Formato actual:
+
+```text
+module=PRODUCT_SERVICE
+event=PRODUCT_CREATED
+traceId=...
+eventId=...
+productId=...
+occurredAt=...

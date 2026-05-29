@@ -1,5 +1,8 @@
 package com.ecommerce.productservice.event.model;
 
+import com.ecommerce.productservice.event.constants.EventRoutingKey;
+import com.ecommerce.productservice.event.constants.EventType;
+
 import java.math.BigDecimal;
 
 public class ProductUpdatedEvent extends ProductEvent {
@@ -8,9 +11,8 @@ public class ProductUpdatedEvent extends ProductEvent {
     private String description;
     private BigDecimal price;
 
-    @Override
-    public String getEventType() {
-        return "PRODUCT_UPDATED";
+    public ProductUpdatedEvent() {
+        super(EventType.PRODUCT_UPDATED);
     }
 
     public String getName() {
@@ -35,5 +37,10 @@ public class ProductUpdatedEvent extends ProductEvent {
 
     public void setPrice(BigDecimal price) {
         this.price = price;
+    }
+
+    @Override
+    public String getRoutingKey() {
+        return EventRoutingKey.PRODUCT_UPDATED;
     }
 }
