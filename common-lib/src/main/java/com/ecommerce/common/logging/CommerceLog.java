@@ -4,6 +4,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 
 import com.ecommerce.common.error.ErrorCode;
+import com.ecommerce.common.trace.TraceConstants;
 import org.slf4j.MDC;
 
 public class CommerceLog {
@@ -32,7 +33,7 @@ public class CommerceLog {
         public String toString() {
             StringJoiner joiner = new StringJoiner(" | ");
 
-            String traceId = MDC.get("traceId");
+            String traceId = MDC.get(TraceConstants.TRACE_ID);
 
             if (module != null) joiner.add("module=" + module);
             if (event != null) joiner.add("event=" + event);

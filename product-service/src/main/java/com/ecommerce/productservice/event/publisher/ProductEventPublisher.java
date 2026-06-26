@@ -4,6 +4,8 @@ import com.ecommerce.common.logging.CommerceLog;
 import com.ecommerce.common.trace.TraceConstants;
 import com.ecommerce.productservice.event.constants.EventConstants;
 import com.ecommerce.productservice.event.model.ProductEvent;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +20,7 @@ import java.util.Map;
 public class ProductEventPublisher {
 
     private final RabbitTemplate rabbitTemplate;
+    private final ObjectMapper objectMapper;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProductEventPublisher.class);
     private static final String COMPONENT = "PRODUCT_SERVICE";
@@ -25,39 +28,70 @@ public class ProductEventPublisher {
     private static final String PUBLISHED = "Published event";
 
     public void publish(ProductEvent event) {
-//        String traceId = MDC.get(TraceConstants.TRACE_ID);
-//        event.setTraceId(traceId);
-        LOGGER.info(CommerceLog.info(
-                COMPONENT,
-                event.getEventType(),
-                PUBLISHING,
-                null,
-                Map.of(
-//                        "traceId", traceId,
-                        "eventId", event.getEventId(),
-                        "productId", event.getAggregateId(),
-                        "occurredAt", event.getOccurredAt()
-                )
-        ).toString());
+        String traceId = MDC.get(TraceConstants.TRACE_ID);
+        event.setTraceId(traceId);
 
-        rabbitTemplate.convertAndSend(
-                EventConstants.PRODUCT_EXCHANGE,
-                event.getRoutingKey(),
-                event
-        );
+        try {
+            String payload = objectMapper.writeValueAsString(event);
 
-        LOGGER.info(CommerceLog.info(
-                COMPONENT,
-                event.getEventType(),
-                PUBLISHED,
-                null,
-                Map.of(
+            LOGGER.info(CommerceLog.info(
+                    COMPONENT,
+                    event.getEventType(),
+                    PUBLISHING,
+                    null,
+                    Map.of(
 //                        "traceId", traceId,
-                        "eventId", event.getEventId(),
-                        "productId", event.getAggregateId(),
-                        "occurredAt", event.getOccurredAt()
-                )
-        ).toString());
+                            "eventId", event.getEventId(),
+                            "productId", event.getAggregateId(),
+                            "exchange", EventConstants.PRODUCT_EXCHANGE,
+                            "routingKey", event.getRoutingKey(),
+                            "occurredAt", event.getOccurredAt(),
+                            "payload", payload
+                    )
+            ).toString());
+
+            rabbitTemplate.convertAndSend(
+                    EventConstants.PRODUCT_EXCHANGE,
+                    event.getRoutingKey(),
+                    event
+            );
+
+            LOGGER.info(CommerceLog.info(
+                    COMPONENT,
+                    event.getEventType(),
+                    PUBLISHED,
+                    null,
+                    Map.of(
+//                        "traceId", traceId,
+                            "eventId", event.getEventId(),
+                            "productId", event.getAggregateId(),
+                            "exchange", EventConstants.PRODUCT_EXCHANGE,
+                            "routingKey", event.getRoutingKey(),
+                            "occurredAt", event.getOccurredAt(),
+                            "payload", payload
+                    )
+            ).toString());
+
+        } catch (JsonProcessingException e) {
+            LOGGER.error(
+                    CommerceLog.error(
+                            COMPONENT,
+                            event.getEventType(),
+                            "Error serializing event",
+                            null,
+                            Map.of(
+                                    "eventId", event.getEventId(),
+                                    "aggregateId", event.getAggregateId()
+                            )
+                    ).toString(),
+                    e
+            );
+
+            throw new RuntimeException(e);
+        }
+
+
+
     }
 
 }
