@@ -1,7 +1,7 @@
 package com.ecommerce.productservice.event.factory;
 
+import com.ecommerce.common.event.model.*;
 import com.ecommerce.productservice.domain.entity.Product;
-import com.ecommerce.productservice.event.model.*;
 import org.springframework.stereotype.Component;
 
 
@@ -16,6 +16,7 @@ public class ProductEventFactory {
         event.setName(product.getName());
         event.setDescription(product.getDescription());
         event.setPrice(product.getPrice());
+        event.setAvailableStock(product.getStock());
 
         return event;
     }

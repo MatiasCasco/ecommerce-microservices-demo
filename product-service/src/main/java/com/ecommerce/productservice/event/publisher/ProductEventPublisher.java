@@ -1,9 +1,10 @@
 package com.ecommerce.productservice.event.publisher;
 
+import com.ecommerce.common.event.constants.ProducerConstants;
 import com.ecommerce.common.logging.CommerceLog;
 import com.ecommerce.common.trace.TraceConstants;
-import com.ecommerce.productservice.event.constants.EventConstants;
-import com.ecommerce.productservice.event.model.ProductEvent;
+import com.ecommerce.common.event.constants.EventConstants;
+import com.ecommerce.common.event.model.ProductEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -24,8 +25,7 @@ public class ProductEventPublisher {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProductEventPublisher.class);
     private static final String COMPONENT = "PRODUCT_SERVICE";
-    private static final String PUBLISHING = "Publishing event";
-    private static final String PUBLISHED = "Published event";
+
 
     public void publish(ProductEvent event) {
         String traceId = MDC.get(TraceConstants.TRACE_ID);
@@ -37,7 +37,7 @@ public class ProductEventPublisher {
             LOGGER.info(CommerceLog.info(
                     COMPONENT,
                     event.getEventType(),
-                    PUBLISHING,
+                    ProducerConstants.PUBLISHING,
                     null,
                     Map.of(
 //                        "traceId", traceId,
@@ -59,7 +59,7 @@ public class ProductEventPublisher {
             LOGGER.info(CommerceLog.info(
                     COMPONENT,
                     event.getEventType(),
-                    PUBLISHED,
+                    ProducerConstants.PUBLISHED,
                     null,
                     Map.of(
 //                        "traceId", traceId,

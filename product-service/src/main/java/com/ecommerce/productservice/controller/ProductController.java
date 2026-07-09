@@ -4,6 +4,7 @@ import com.ecommerce.productservice.domain.entity.Category;
 import com.ecommerce.productservice.domain.entity.Product;
 import com.ecommerce.productservice.dto.request.ProductFilter;
 import com.ecommerce.productservice.dto.request.ProductRequest;
+import com.ecommerce.productservice.dto.request.ProductUpdateRequest;
 import com.ecommerce.productservice.dto.response.ProductResponse;
 import com.ecommerce.productservice.service.ProductService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -53,7 +54,7 @@ public class ProductController {
     @PutMapping("/{id}")
     public ProductResponse update(
             @PathVariable Long id,
-            @Valid @RequestBody ProductRequest request
+            @Valid @RequestBody ProductUpdateRequest request
     ) {
         return productService.updateProduct(id, request);
     }

@@ -26,6 +26,18 @@ services:
     volumes:
       - product-data:/var/lib/postgresql/data
 
+  order-db:
+    image: postgres:15
+    container_name: ecommerce-order
+    environment:
+      POSTGRES_DB: ${ORDER_DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT_ORDER}:5432"
+    volumes:
+      - order-data:/var/lib/postgresql/data
+
   mongo:
     image: mongo:7
     container_name: ecommerce-mongo
@@ -49,5 +61,6 @@ services:
 volumes:
   user-data:
   product-data:
+  order-data:
   mongo-data:
   rabbitmq-data:

@@ -1,4 +1,4 @@
-package com.ecommerce.productservice.event.model;
+package com.ecommerce.common.event.model;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

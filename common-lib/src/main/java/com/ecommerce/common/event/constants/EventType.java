@@ -1,4 +1,4 @@
-package com.ecommerce.productservice.event.constants;
+package com.ecommerce.common.event.constants;
 
 public final class EventType {
 

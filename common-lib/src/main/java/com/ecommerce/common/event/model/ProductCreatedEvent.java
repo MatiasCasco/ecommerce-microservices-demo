@@ -1,8 +1,7 @@
-package com.ecommerce.productservice.event.model;
+package com.ecommerce.common.event.model;
 
-import com.ecommerce.productservice.event.constants.EventConstants;
-import com.ecommerce.productservice.event.constants.EventRoutingKey;
-import com.ecommerce.productservice.event.constants.EventType;
+import com.ecommerce.common.event.constants.EventRoutingKey;
+import com.ecommerce.common.event.constants.EventType;
 
 import java.math.BigDecimal;
 
@@ -11,10 +10,15 @@ public class ProductCreatedEvent extends ProductEvent {
     private String name;
     private String description;
     private BigDecimal price;
+    private Integer availableStock;
 
     public ProductCreatedEvent() {
         super(EventType.PRODUCT_CREATED);
     }
+
+    public Integer getAvailableStock() { return availableStock; }
+
+    public void setAvailableStock(Integer availableStock) { this.availableStock = availableStock; }
 
     public String getName() {
         return name;

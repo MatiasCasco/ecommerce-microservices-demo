@@ -1,4 +1,4 @@
-package com.ecommerce.productservice.config;
+package com.ecommerce.orderservice.config;
 
 import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +33,7 @@ public class DataSourceConfig {
         ds.setDriverClassName(driver);
 
         // Hikari Config
-        ds.setPoolName("ProductServiceHikariPool");
+        ds.setPoolName("OrderServiceHikariPool");
         ds.setMaximumPoolSize(10);
         ds.setMinimumIdle(3);
         ds.setIdleTimeout(30000);
