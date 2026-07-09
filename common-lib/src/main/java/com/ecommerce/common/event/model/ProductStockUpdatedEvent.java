@@ -1,7 +1,7 @@
-package com.ecommerce.productservice.event.model;
+package com.ecommerce.common.event.model;
 
-import com.ecommerce.productservice.event.constants.EventRoutingKey;
-import com.ecommerce.productservice.event.constants.EventType;
+import com.ecommerce.common.event.constants.EventRoutingKey;
+import com.ecommerce.common.event.constants.EventType;
 
 public class ProductStockUpdatedEvent extends ProductEvent {
 

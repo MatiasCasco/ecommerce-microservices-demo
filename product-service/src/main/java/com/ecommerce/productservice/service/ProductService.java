@@ -1,5 +1,6 @@
 package com.ecommerce.productservice.service;
 
+import com.ecommerce.common.event.model.*;
 import com.ecommerce.common.exception.BusinessException;
 import com.ecommerce.productservice.domain.entity.Category;
 import com.ecommerce.productservice.domain.entity.Product;
@@ -8,15 +9,14 @@ import com.ecommerce.productservice.domain.enums.ProductStatus;
 import com.ecommerce.productservice.domain.specification.ProductSpecification;
 import com.ecommerce.productservice.dto.request.ProductFilter;
 import com.ecommerce.productservice.dto.request.ProductRequest;
+import com.ecommerce.productservice.dto.request.ProductUpdateRequest;
 import com.ecommerce.productservice.dto.response.ProductResponse;
 import com.ecommerce.productservice.event.factory.ProductEventFactory;
-import com.ecommerce.productservice.event.model.*;
 import com.ecommerce.productservice.event.publisher.ProductEventPublisher;
 import com.ecommerce.productservice.mapper.ProductMapper;
 import com.ecommerce.productservice.repository.CategoryRepository;
 import com.ecommerce.productservice.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -24,7 +24,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +37,7 @@ public class ProductService {
 
     public ProductResponse createProduct(ProductRequest request) {
 
-        Category category = findCategory(request);
+        Category category = findCategory(request.getCategoryId());
 
         Product product = buildProduct(request, category);
 
@@ -73,11 +72,11 @@ public class ProductService {
         return productMapper.toProductResponse(product);
     }
 
-    public ProductResponse updateProduct(Long id, ProductRequest request) {
+    public ProductResponse updateProduct(Long id, ProductUpdateRequest request) {
 
         Product product = getProductById(id);
 
-        Category category = findCategory(request);
+        Category category = findCategory(request.getCategoryId());
 
 
         updateProductFields(request, product, category);
@@ -196,8 +195,8 @@ public class ProductService {
         return hasRole("ROLE_USER");
     }
 
-    private Category findCategory(ProductRequest request) {
-        Category category = categoryRepository.findById(request.getCategoryId())
+    private Category findCategory(Long categoryId) {
+        Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new BusinessException(
                         "Category not found",
                         ProductErrorCode.CATEGORY_NOT_FOUND
@@ -217,11 +216,10 @@ public class ProductService {
         return product;
     }
 
-    private void updateProductFields(ProductRequest request, Product product, Category category) {
+    private void updateProductFields(ProductUpdateRequest request, Product product, Category category) {
         product.setName(request.getName());
         product.setDescription(request.getDescription());
         product.setPrice(request.getPrice());
-        product.setStock(request.getStock());
         product.setCategory(category);
     }
 
