@@ -4,7 +4,7 @@
 
 ![Architecture](./diagrams/architecture.png)
 
-![ArchitectureV2](./diagrams/architectureV2.png)
+![ArchitectureV3](./diagrams/architectureV3.png)
 
 ---
 
@@ -20,11 +20,15 @@ Este sistema está basado en una arquitectura de microservicios orientada a even
 
 - **PRODUCT SERVICE**
   - Gestión de productos, precios y stock
+  - Fuente oficial de información (Source of Truth)
+  - Publica eventos de dominio mediante RabbitMQ
   - Base de datos: PostgreSQL
 
 - **ORDER SERVICE**
-  - Orquestación de órdenes
-  - Valida productos y publica eventos
+  - Gestión y orquestación de órdenes
+  - Mantiene una proyección local del catálogo de productos
+  - Consume eventos publicados por Product Service
+  - Valida productos utilizando ProductCatalog
   - Base de datos: PostgreSQL
 
 - **NOTIFICATION SERVICE**
@@ -33,7 +37,9 @@ Este sistema está basado en una arquitectura de microservicios orientada a even
   - Incluye scheduler para reintentos
 
 - **RABBITMQ**
-  - Comunicación asíncrona entre servicios
+  - Broker de mensajería
+  - Distribuye eventos de dominio entre microservicios
+  - Desacopla productores y consumidores
 
 ---
 
@@ -41,4 +47,7 @@ Este sistema está basado en una arquitectura de microservicios orientada a even
 
 - Comunicación síncrona: REST
 - Comunicación asíncrona: RabbitMQ
+- Arquitectura orientada a eventos (EDA)
+- Product Service actúa como Source of Truth
+- Order Service mantiene una proyección local sincronizada mediante eventos
 - Servicios desacoplados
