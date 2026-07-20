@@ -1,0 +1,13 @@
+docs/
+└── architecture/
+    │
+    ├── overview.md              ← Visión general del ecosistema
+    ├── flow.md                  ← Flujo completo del negocio
+    ├── rabbitmq.md              ← Toda la arquitectura EDA
+    ├── event-model.md           ← Cómo diseñamos eventos
+    ├── distributed-tracing.md   ← TraceId
+    ├── logging.md               ← CommerceLog
+    ├── security.md              ← JWT + Seguridad
+    ├── common-library.md        ← Filosofía de common-lib
+    ├── projections.md           ← ProductCatalog y proyecciones
+    └── diagrams/
