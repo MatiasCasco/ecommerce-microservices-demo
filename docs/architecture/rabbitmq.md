@@ -332,9 +332,13 @@ Actualmente existen:
 ```
 product.created.queue
 
-product.lifecycle.queue
+product.updated.queue
 
-product.stock.queue
+product.activated.queue
+
+product.deactivated.queue
+
+product.stock.updated.queue
 ```
 
 En el futuro podrán existir nuevas colas para nuevos microservicios.
