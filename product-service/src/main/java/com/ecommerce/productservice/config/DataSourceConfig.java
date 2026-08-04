@@ -33,7 +33,7 @@ public class DataSourceConfig {
         ds.setDriverClassName(driver);
 
         // Hikari Config
-        ds.setPoolName("UserServiceHikariPool");
+        ds.setPoolName("ProductServiceHikariPool");
         ds.setMaximumPoolSize(10);
         ds.setMinimumIdle(3);
         ds.setIdleTimeout(30000);
