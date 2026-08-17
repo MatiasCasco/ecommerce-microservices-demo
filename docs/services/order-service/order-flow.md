@@ -2,193 +2,473 @@
 
 ## Objetivo
 
-Este documento describe el flujo de creación de una orden dentro de **Order Service**.
+Este documento describe el flujo funcional de creación de una Order dentro de Order Service.
 
-Actualmente el servicio utiliza una **proyección local del catálogo de productos** (`ProductCatalog`) sincronizada mediante eventos provenientes de **Product Service**.
+El flujo se centra exclusivamente en la creación de la Order y en la interacción entre:
 
-Esto elimina la necesidad de realizar llamadas REST durante el proceso de compra.
+- API;
+- Application;
+- ProductCatalog;
+- Domain;
+- Persistencia.
+
+La sincronización de `ProductCatalog` se documenta en `product-catalog.md`, `synchronization.md` y `event-consumption.md`.
 
 ---
 
 # Flujo Actual
 
 ```text
-                Cliente
-                    │
-                    ▼
-             POST /orders
-                    │
-                    ▼
-             Order Controller
-                    │
-                    ▼
-              Order Service
-                    │
-                    ▼
-       Consultar ProductCatalog
-                    │
-                    ▼
-         Validar Productos
-                    │
-      ┌─────────────┼──────────────┐
-      │             │              │
-      ▼             ▼              ▼
- ¿Existe?     ¿Está ACTIVE?   ¿Stock suficiente?
-      │             │              │
-      └─────────────┴──────────────┘
-                    │
-                    ▼
-        Construir Aggregate Order
-                    │
-                    ▼
-      Construir OrderItems
-                    │
-                    ▼
-      Calcular Subtotales
-                    │
-                    ▼
-        Calcular Total
-                    │
-                    ▼
-      Persistir Order + Items
-                    │
-                    ▼
-          Estado Inicial
-      PENDING_PAYMENT
-                    │
-                    ▼
-             HTTP 201 Created
+                    Cliente
+                       │
+                       ▼
+                  POST /orders
+                       │
+                       ▼
+                Order Controller
+                       │
+                       ▼
+              Create Order Use Case
+                       │
+                       ▼
+              Resolver customerId
+                       │
+                       ▼
+              Consultar ProductCatalog
+                       │
+                       ▼
+                Validar productos
+                       │
+             ┌─────────┼─────────┐
+             │         │         │
+             ▼         ▼         ▼
+          ¿Existe?  ¿ACTIVE?  ¿Stock?
+             │         │         │
+             └─────────┴─────────┘
+                       │
+                       ▼
+               Construir OrderItem
+                       │
+                       ▼
+                 Construir Order
+                       │
+                       ▼
+              Calcular subtotales
+                       │
+                       ▼
+                 Calcular total
+                       │
+                       ▼
+              Persistir Order
+                + OrderItems
+                       │
+                       ▼
+              PENDING_PAYMENT
+                       │
+                       ▼
+                  HTTP 201
 ```
 
 ---
 
-# Descripción del Flujo
+# 1. Recepción de la solicitud
 
-## 1. Recepción de la solicitud
+El cliente solicita la creación de una nueva Order mediante:
 
-El cliente envía una solicitud para crear una nueva orden.
+```text
+POST /orders
+```
 
-El Request únicamente contiene:
+El request contiene los productos y cantidades solicitadas.
 
-- customerId
-- productos
-- cantidades
+El `customerId` depende del actor:
 
-El cliente nunca envía:
+```text
+USER
+ │
+ └── customerId obtenido del actor autenticado
 
-- precio
-- subtotal
-- total
 
-Estos valores siempre son calculados por el servidor.
+ADMIN
+ │
+ └── customerId proporcionado en el request
+```
 
----
+El cliente no controla los valores económicos de la Order.
 
-## 2. Consulta del catálogo local
+No se aceptan como valores confiables:
 
-Order Service consulta `ProductCatalog`.
-
-No realiza llamadas REST hacia Product Service.
-
-El catálogo local representa una proyección sincronizada mediante RabbitMQ.
-
----
-
-## 3. Validaciones
-
-Para cada producto se verifica:
-
-- existencia
-- estado ACTIVE
-- stock suficiente
-
-Si alguna validación falla, la orden no se crea.
+- precio;
+- subtotal;
+- total.
 
 ---
 
-## 4. Construcción del Aggregate
+# 2. Resolución del Customer
 
-Se construye el Aggregate Root `Order`.
+Antes de construir la Order, Application determina el `customerId` que será asociado al Aggregate.
 
-Cada producto genera un `OrderItem` que representa una fotografía del producto al momento de la compra.
+```text
+AuthenticatedActor
+        │
+        ▼
+Create Order Use Case
+        │
+        ▼
+customerId
+        │
+        ▼
+Order
+```
 
-Cada OrderItem conserva:
+Las reglas de autenticación, autorización y ownership se documentan en:
 
-- productId
-- productName
-- unitPrice
-- quantity
-- subtotal
-
----
-
-## 5. Cálculo de importes
-
-Cada OrderItem calcula su propio subtotal.
-
-Posteriormente Order calcula el total de la compra.
-
-La lógica de negocio pertenece al dominio y no al Service.
-
----
-
-## 6. Persistencia
-
-Order y OrderItems se persisten dentro de una única transacción.
-
-Si ocurre cualquier error, toda la operación es revertida.
+```text
+security-authorization.md
+```
 
 ---
 
-## 7. Estado inicial
+# 3. Consulta del ProductCatalog
 
-Toda nueva orden comienza con el estado:
+Order Service consulta la proyección local:
+
+```text
+ProductCatalog
+```
+
+No realiza una llamada REST a Product Service durante la creación.
+
+```text
+Create Order
+      │
+      ▼
+ProductCatalog
+      │
+      ├── productId
+      ├── productName
+      ├── price
+      ├── availableStock
+      └── status
+```
+
+`Product Service` continúa siendo el Source of Truth.
+
+La proyección local se mantiene mediante eventos.
+
+Los detalles se documentan en:
+
+- `product-catalog.md`;
+- `synchronization.md`;
+- `event-consumption.md`.
+
+---
+
+# 4. Validación de productos
+
+Para cada producto solicitado se verifica:
+
+- existencia;
+- estado `ACTIVE`;
+- stock disponible;
+- cantidad válida.
+
+Conceptualmente:
+
+```text
+Requested Product
+       │
+       ├── ¿Existe?
+       │
+       ├── ¿Está ACTIVE?
+       │
+       ├── ¿Cantidad válida?
+       │
+       └── ¿Stock suficiente?
+              │
+              ▼
+        Producto válido
+```
+
+Si alguna validación falla:
+
+```text
+No se crea la Order.
+```
+
+---
+
+# 5. Construcción del OrderItem
+
+Para cada producto válido se construye un `OrderItem`.
+
+```text
+ProductCatalog
+      │
+      ▼
+OrderItem
+      │
+      ├── productId
+      ├── productName
+      ├── unitPrice
+      ├── quantity
+      └── subtotal
+```
+
+El `unitPrice` utilizado es el precio conocido en `ProductCatalog`.
+
+El cliente no puede sustituirlo por un precio enviado en el request.
+
+El `OrderItem` representa un snapshot histórico.
+
+---
+
+# 6. Construcción del Aggregate Order
+
+Los `OrderItem` se agrupan dentro del Aggregate Root `Order`.
+
+```text
+Order
+│
+├── customerId
+│
+├── OrderItem
+├── OrderItem
+├── ...
+│
+├── total
+│
+└── PENDING_PAYMENT
+```
+
+Durante esta etapa el Aggregate protege sus invariantes.
+
+Las invariantes y reglas del dominio se encuentran en:
+
+```text
+domain.md
+```
+
+---
+
+# 7. Cálculo de importes
+
+Cada `OrderItem` calcula su subtotal:
+
+```text
+subtotal = unitPrice × quantity
+```
+
+Después `Order` calcula el total:
+
+```text
+total = Σ subtotales
+```
+
+```text
+OrderItem
+    │
+    └── subtotal
+          │
+          ▼
+        Order
+          │
+          └── total
+```
+
+El cálculo pertenece al dominio.
+
+---
+
+# 8. Persistencia
+
+Una vez construido y validado el Aggregate:
+
+```text
+Order
+  +
+OrderItems
+```
+
+se persisten como una única unidad transaccional.
+
+```text
+BEGIN TRANSACTION
+        │
+        ▼
+Persist Order
+        │
+        ▼
+Persist OrderItems
+        │
+   ┌────┴────┐
+   │         │
+   ▼         ▼
+  OK       ERROR
+   │         │
+   ▼         ▼
+COMMIT    ROLLBACK
+```
+
+No debe quedar una Order parcialmente persistida respecto de sus Items.
+
+---
+
+# 9. Estado Inicial
+
+Toda Order creada correctamente comienza en:
 
 ```text
 PENDING_PAYMENT
 ```
 
-La orden nunca nace pagada.
+La Order no nace pagada.
+
+El pago representa un proceso independiente.
+
+---
+
+# 10. Resultado
+
+Si todo el flujo finaliza correctamente:
+
+```text
+Order
+├── customerId
+├── items
+├── total
+└── PENDING_PAYMENT
+```
+
+La API responde con:
+
+```text
+HTTP 201 Created
+```
+
+La respuesta y el contrato HTTP se documentan en:
+
+```text
+api.md
+```
+
+---
+
+# Flujo ante errores
+
+Si una validación de negocio falla:
+
+```text
+Request
+   │
+   ▼
+Validación
+   │
+   ▼
+ERROR
+   │
+   ▼
+No se crea Order
+```
+
+Si ocurre un error durante la persistencia:
+
+```text
+BEGIN TRANSACTION
+        │
+        ▼
+      ERROR
+        │
+        ▼
+    ROLLBACK
+```
+
+No se debe considerar creada una Order cuya transacción no haya finalizado correctamente.
 
 ---
 
 # Evolución del flujo
 
-En las próximas iteraciones el flujo evolucionará hacia un proceso completamente orientado a eventos.
+Actualmente el flujo de creación no publica eventos propios de Order.
+
+```text
+POST /orders
+      │
+      ▼
+Create Order
+      │
+      ▼
+Persist Order
+      │
+      ▼
+PENDING_PAYMENT
+```
+
+La evolución prevista incorpora publicación de eventos:
 
 ```text
 Cliente
-    │
-    ▼
+   │
+   ▼
 POST /orders
-    │
-    ▼
-Persistir Order
-    │
-    ▼
+   │
+   ▼
+Create Order
+   │
+   ▼
+Persist Order
+   │
+   ▼
 OrderCreatedEvent
-    │
-    ▼
+   │
+   ▼
 RabbitMQ
-    │
-    ├────────► Notification Service
-    │
-    ├────────► Payment Service
-    │
-    └────────► Inventory Service
+   │
+   ├────────► Notification Service
+   │
+   ├────────► Payment Service
+   │
+   └────────► Inventory Service
 ```
 
-La publicación de eventos será implementada una vez finalizado el caso de uso principal de creación de órdenes.
+Esta evolución no forma parte todavía del flujo implementado.
+
+La publicación de eventos y sus decisiones asociadas se documentarán en los documentos correspondientes cuando se implemente.
 
 ---
 
-# Principios de diseño
+# Principios del Flujo
 
-Este flujo fue diseñado siguiendo los siguientes principios:
+El flujo actual respeta:
 
-- Domain-Driven Design (DDD)
-- Aggregate Root
-- Event-Driven Architecture (EDA)
-- Local Projection Pattern
-- Transactional Consistency
-- Bajo acoplamiento entre microservicios
+- Aggregate Root;
+- Domain-Driven Design;
+- Local Projection;
+- Event-Driven Architecture para sincronización del catálogo;
+- consistencia transaccional;
+- bajo acoplamiento entre microservicios;
+- separación entre Application y Domain.
+
+La responsabilidad de cada capa se mantiene separada:
+
+```text
+API
+ │
+ └── recibe la solicitud
+
+Application
+ │
+ └── coordina el caso de uso
+
+ProductCatalog
+ │
+ └── proporciona información actual del producto
+
+Domain
+ │
+ └── protege invariantes y calcula importes
+
+Persistence
+ │
+ └── conserva el Aggregate
+```

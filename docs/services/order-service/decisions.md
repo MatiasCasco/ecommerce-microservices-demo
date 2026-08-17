@@ -2,11 +2,18 @@
 
 ## Objetivo
 
-Este documento registra las principales decisiones de diseño adoptadas durante el desarrollo de **Order Service**.
+Este documento registra las principales decisiones de diseño adoptadas durante el diseño de Order Service.
 
-Su propósito es explicar el razonamiento detrás del modelo de dominio, facilitando el mantenimiento, la evolución del sistema y la incorporación de nuevos desarrolladores.
+Su propósito es conservar:
 
-Las decisiones aquí documentadas son específicas de Order Service. Las decisiones que afectan a toda la arquitectura del sistema se documentan como Architecture Decision Records (ADR).
+- el problema que motivó una decisión;
+- la decisión adoptada;
+- su justificación;
+- las consecuencias relevantes.
+
+Las decisiones específicas del dominio de Order Service se documentan aquí.
+
+Las decisiones transversales de toda la arquitectura se documentan mediante ADR cuando corresponda.
 
 ---
 
@@ -16,46 +23,72 @@ Las decisiones aquí documentadas son específicas de Order Service. Las decisio
 
 ### Problema
 
-Una orden está compuesta por múltiples productos (OrderItems). Era necesario definir quién sería responsable de mantener la consistencia del agregado.
+Una Order está compuesta por múltiples `OrderItem` y era necesario definir quién protege la consistencia del conjunto.
 
 ### Decisión
 
 `Order` será el **Aggregate Root**.
 
-Toda modificación del agregado deberá realizarse exclusivamente a través de Order.
+Toda modificación del Aggregate deberá realizarse a través de `Order`.
 
 ### Justificación
 
-- Mantiene la consistencia del agregado.
-- Centraliza las reglas de negocio.
-- Evita modificaciones parciales de los OrderItems.
-- Sigue los principios de Domain-Driven Design (DDD).
+- protege la consistencia del Aggregate;
+- centraliza las invariantes;
+- evita modificaciones independientes de `OrderItem`;
+- mantiene las reglas del negocio dentro del dominio.
 
 ---
 
-## OrderItem representa un Snapshot
+## OrderItem como Snapshot Histórico
 
 ### Problema
 
-Los productos pueden cambiar de nombre, precio o incluso ser eliminados del catálogo después de una compra.
+Los productos pueden cambiar de nombre, precio, stock o estado después de una compra.
 
 ### Decisión
 
-Cada OrderItem almacenará la información necesaria para reconstruir la compra.
+Cada `OrderItem` conservará la información necesaria para reconstruir lo que fue comprado.
 
 Incluye:
 
-- productId
-- productName
-- unitPrice
-- quantity
-- subtotal
+- `productId`;
+- `productName`;
+- `unitPrice`;
+- `quantity`;
+- `subtotal`.
 
 ### Justificación
 
-La orden representa una fotografía del momento en que se realizó la compra.
+La Order representa la compra en el momento en que fue realizada.
 
-Los cambios posteriores en Product Service no deben modificar el historial de una orden.
+Los cambios posteriores del catálogo no deben modificar el historial de una Order existente.
+
+---
+
+## Inmutabilidad del Contenido Comercial
+
+### Problema
+
+Una Order representa un registro histórico. Permitir modificaciones posteriores podría alterar el significado de la compra original.
+
+### Decisión
+
+Una vez creada una Order, su contenido comercial no cambia.
+
+No se modifican:
+
+- `productId`;
+- `productName`;
+- `unitPrice`;
+- `quantity`;
+- `subtotal`;
+- `total`;
+- `customerId`.
+
+### Justificación
+
+La Order debe poder reconstruirse históricamente sin depender de información actualizada del catálogo.
 
 ---
 
@@ -63,93 +96,80 @@ Los cambios posteriores en Product Service no deben modificar el historial de un
 
 ### Problema
 
-Consultar Product Service mediante REST durante cada compra incrementa el acoplamiento, la latencia y la dependencia entre microservicios.
+Consultar Product Service mediante REST durante cada creación de Order incrementa el acoplamiento y genera una dependencia síncrona entre servicios.
 
 ### Decisión
 
-Order Service mantendrá una copia local del catálogo (`ProductCatalog`) sincronizada mediante eventos.
+Order Service mantiene una proyección local denominada `ProductCatalog`.
+
+Esta proyección se sincroniza mediante eventos publicados por Product Service.
 
 ### Justificación
 
-- Reduce el acoplamiento.
-- Disminuye la latencia.
-- Mejora la disponibilidad.
-- Favorece una arquitectura Event-Driven.
+- reduce el acoplamiento síncrono;
+- evita depender de Product Service durante la creación de una Order;
+- permite trabajar con información local;
+- mantiene a Product Service como Source of Truth.
 
 ---
 
 # Decisiones del Modelo
 
-## El cliente nunca envía precios
+## El Cliente No Define Precios
 
 ### Problema
 
-Permitir que el cliente envíe el precio de un producto compromete la integridad de la información.
+Permitir que el cliente envíe precios comprometería la integridad de la información económica.
 
 ### Decisión
 
-El Request únicamente enviará:
+El cliente únicamente proporciona la información necesaria para solicitar la compra:
 
-- customerId
-- productId
-- quantity
+- productos;
+- cantidades;
+- `customerId` cuando corresponda según el actor.
 
-Toda la información económica será obtenida desde ProductCatalog.
+El cliente no define:
+
+- `unitPrice`;
+- `subtotal`;
+- `total`.
 
 ### Justificación
 
-El servidor es el único responsable de calcular importes.
+Los importes deben ser determinados por el servidor utilizando la información de `ProductCatalog`.
+
+Las reglas específicas de `USER`, `ADMIN` y ownership se documentan en `security-authorization.md`.
 
 ---
 
-## El dominio calcula los importes
+## El Dominio Calcula los Importes
 
 ### Problema
 
-Era necesario definir dónde reside la lógica de cálculo.
+Era necesario definir dónde debía residir la lógica de cálculo.
 
 ### Decisión
 
-Cada OrderItem calculará su subtotal.
+`OrderItem` calcula su subtotal.
 
-Order calculará el total de la compra.
-
-### Justificación
-
-La lógica pertenece al dominio y no a la capa de servicios.
-
-Los Services únicamente coordinan el caso de uso.
-
----
-
-## Las órdenes son documentos históricos
-
-### Problema
-
-Una orden debe conservar información histórica incluso cuando el catálogo evoluciona.
-
-### Decisión
-
-Una vez creada una orden:
-
-- no cambia el nombre del producto
-- no cambia el precio
-- no cambia la cantidad
-- no cambia el subtotal
+`Order` calcula el total.
 
 ### Justificación
 
-La orden representa un documento contable y de auditoría.
+El cálculo forma parte de las reglas del dominio.
+
+La capa Application coordina el caso de uso, pero no se convierte en dueña de estas reglas.
 
 ---
 
 # Decisiones del Ciclo de Vida
 
-## Estado inicial
+## Estado Inicial
 
 ### Decisión
 
-Toda nueva orden comenzará con el estado:
+Toda nueva Order comienza en:
 
 ```text
 PENDING_PAYMENT
@@ -157,106 +177,264 @@ PENDING_PAYMENT
 
 ### Justificación
 
-Una orden no nace pagada.
+Una Order creada no implica que el pago haya sido confirmado.
 
-El pago representa un proceso independiente que ocurrirá posteriormente.
+El pago representa un proceso independiente.
 
 ---
 
-## Las órdenes no se eliminan
-
-### Problema
-
-Eliminar órdenes implica perder información valiosa para auditoría y análisis del negocio.
+## Transiciones de Estado
 
 ### Decisión
 
-Las órdenes cambiarán de estado.
+En el MVP las transiciones permitidas son:
 
-Nunca serán eliminadas.
+```text
+PENDING_PAYMENT
+       │
+       ├──► PAID
+       │
+       └──► CANCELLED
+```
+
+`PAID` y `CANCELLED` son estados terminales.
 
 ### Justificación
 
-Permite:
+El Aggregate debe controlar las transiciones válidas y evitar cambios arbitrarios de estado.
 
-- auditoría
-- trazabilidad
-- métricas
-- análisis comercial
+El pago no se representa como un simple cambio administrativo del estado de la Order.
+
+---
+
+## Las Órdenes No Se Eliminan
+
+### Problema
+
+Eliminar una Order implicaría perder información histórica.
+
+### Decisión
+
+Las Orders nunca se eliminan físicamente como parte del lifecycle del dominio.
+
+Su estado representa su evolución.
+
+### Justificación
+
+Permite conservar:
+
+- auditoría;
+- trazabilidad;
+- métricas;
+- análisis del negocio.
 
 ---
 
 # Decisiones de Integración
 
-## Sincronización mediante eventos
+## Product Service como Source of Truth
 
 ### Decisión
 
-ProductCatalog se mantendrá sincronizado exclusivamente mediante eventos publicados por Product Service.
+Product Service continúa siendo el dueño del catálogo.
+
+Order Service no modifica el catálogo original.
 
 ### Justificación
 
-Order Service no es dueño del catálogo.
-
-Product Service continúa siendo la única fuente de verdad.
+Evita tener múltiples fuentes de verdad para la misma información.
 
 ---
 
-## Separación entre lectura y escritura
+## ProductCatalog Solo como Proyección
 
 ### Decisión
 
-ProductCatalog será utilizado únicamente para lectura.
+`ProductCatalog` se utiliza para lectura por parte de Order Service.
 
-Las operaciones de negocio nunca modificarán directamente esta proyección.
+Las operaciones de negocio de Order no modifican directamente la proyección como si fuera el catálogo original.
 
 ### Justificación
 
-Se evita romper el principio de "Single Source of Truth".
+Se mantiene la separación:
+
+```text
+Product Service
+      │
+      └── Source of Truth
+
+ProductCatalog
+      │
+      └── Proyección local
+```
 
 ---
 
-# Decisiones Futuras
-
-## Reserva de Stock
-
-Durante el análisis del dominio se evaluaron dos estrategias.
-
-### Opción A
-
-Reservar stock al crear una orden.
-
-Ventajas:
-
-- evita overselling
-- mejora la experiencia del cliente
-- comportamiento similar al de grandes plataformas de e-commerce
-
-### Opción B
-
-Descontar stock únicamente después del pago.
-
-Ventajas:
-
-- implementación más simple
-
-Desventajas:
-
-- posibilidad de vender más unidades de las disponibles
+## Sincronización Mediante Eventos
 
 ### Decisión
 
-La arquitectura evolucionará hacia la **reserva de stock**, pero esta funcionalidad será implementada en una etapa posterior cuando exista un servicio dedicado al inventario.
+ProductCatalog se sincroniza mediante eventos publicados por Product Service.
+
+### Justificación
+
+El modelo evita una dependencia REST síncrona durante la creación de Orders y permite que Order Service mantenga una representación local del catálogo.
+
+Los detalles de esta sincronización se documentan en:
+
+- `synchronization.md`;
+- `event-consumption.md`;
+- `product-catalog.md`.
+
+---
+
+# Decisiones sobre Stock
+
+## Stock Disponible No Es Reserva
+
+### Problema
+
+Consultar `availableStock` desde una proyección local no garantiza por sí mismo que una unidad quede reservada para una Order.
+
+Existe una posible condición de carrera:
+
+```text
+Stock = 1
+
+Order A ──► observa 1
+Order B ──► observa 1
+```
+
+Ambas podrían intentar comprar la misma unidad.
+
+### Decisión
+
+La validación de stock pertenece al flujo actual, pero la reserva de inventario no será implementada dentro de Order Service como una solución improvisada.
+
+La arquitectura evolucionará hacia una responsabilidad dedicada de Inventory / Reservation.
+
+### Justificación
+
+Se evita mezclar la responsabilidad de inventario con el Aggregate Order y se deja abierta una evolución hacia una solución consistente de reserva.
+
+---
+
+# Decisiones de Arquitectura del Dominio
+
+## Separación entre Dominio y Seguridad
+
+### Decisión
+
+`Order` no conoce:
+
+- JWT;
+- Spring Security;
+- `SecurityContext`;
+- roles;
+- mecanismos de autenticación.
+
+### Justificación
+
+Authentication, Authorization, Ownership y Business Rules son responsabilidades diferentes.
+
+La representación del actor autenticado y las reglas de autorización se documentan en:
+
+```text
+security-authorization.md
+```
+
+---
+
+## Actor no es Customer
+
+### Decisión
+
+El actor que ejecuta una operación no se modela como el Customer propietario de la Order.
+
+```text
+Actor ≠ Customer
+```
+
+El `customerId` pertenece al estado de la Order.
+
+La forma en que se determina ese identificador depende del actor y del caso de uso.
+
+### Justificación
+
+Permite distinguir:
+
+- quién ejecuta la operación;
+- para quién se realiza la operación;
+- qué reglas de ownership aplican.
+
+---
+
+# Decisiones sobre Evolución
+
+## No Implementar Customer Projection Prematuramente
+
+### Problema
+
+Order Service puede necesitar validar o consultar información de Customer en el futuro.
+
+Crear una proyección desde el comienzo introduciría infraestructura y consistencia eventual sin una necesidad actual suficientemente fuerte.
+
+### Decisión
+
+No implementar Customer Projection en el MVP.
+
+Actualmente Order necesita principalmente la referencia:
+
+```text
+customerId
+```
+
+### Justificación
+
+Se evita sobreingeniería.
+
+La arquitectura puede evolucionar posteriormente hacia una Customer Projection si aparece una necesidad concreta.
+
+---
+
+## Order Creation no Equivale a Stock Reservation
+
+### Decisión
+
+Crear una Order no implica que Inventory haya reservado stock.
+
+```text
+Order CREATED
+      ≠
+Stock RESERVED
+```
+
+### Justificación
+
+La reserva requiere una responsabilidad específica de inventario y coordinación que todavía no forma parte del MVP.
 
 ---
 
 # Principio General
 
-Todas las decisiones adoptadas en Order Service deberán respetar los siguientes principios:
+Las decisiones de Order Service deben respetar:
 
-- El dominio guía la implementación.
-- Product Service es el dueño del catálogo.
-- Order representa un documento histórico.
-- Las reglas de negocio pertenecen al dominio.
-- Los eventos desacoplan los microservicios.
-- El sistema debe evolucionar de forma incremental evitando sobreingeniería.
+- el dominio guía la implementación;
+- `Order` protege sus invariantes;
+- `OrderItem` conserva el snapshot histórico;
+- Product Service es el dueño del catálogo;
+- `ProductCatalog` es una proyección local;
+- las reglas de negocio pertenecen al dominio;
+- los eventos reducen el acoplamiento entre servicios;
+- las responsabilidades deben permanecer separadas;
+- el sistema debe evolucionar incrementalmente;
+- se evita sobreingeniería.
+
+La regla general es:
+
+```text
+Diseñar para evolucionar
+          ↓
+Implementar solamente
+lo que necesita el negocio actual
+```
