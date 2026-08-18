@@ -23,7 +23,8 @@ Order Service
       │
       ├── Order
       ├── ProductCatalog
-      └── Product Event Consumer
+      ├── Product Event Consumer
+      └── HTTP Idempotency for Create Order
 ```
 
 y puede evolucionar hacia:
@@ -132,6 +133,41 @@ La transición a `PAID` representa un pago confirmado.
 Por este motivo, `ADMIN` no debe marcar manualmente una Order como `PAID`.
 
 La operación de pago pertenece al contexto de Payment.
+
+---
+
+# Pricing / Offer
+
+Actualmente Order utiliza el precio conocido por `ProductCatalog` y lo conserva como snapshot histórico en `OrderItem.unitPrice`.
+
+El MVP acepta la consistencia eventual del precio del catálogo.
+
+Una evolución futura podría introducir una capability o servicio de `Pricing / Offer` si aparecen necesidades comerciales más sofisticadas, por ejemplo:
+
+- promociones;
+- descuentos;
+- cupones;
+- precios por Customer;
+- precios temporales;
+- reglas comerciales de pricing;
+- garantías de precio más sofisticadas.
+
+Conceptualmente:
+
+```text
+Order
+  │
+  ▼
+Pricing / Offer
+  │
+  ├── price
+  ├── discount
+  └── commercial rules
+```
+
+La incorporación de Pricing / Offer no forma parte del MVP.
+
+No debe implementarse hasta que exista una necesidad concreta que justifique una responsabilidad separada.
 
 ---
 
@@ -246,9 +282,38 @@ No forma parte del MVP.
 
 # Idempotencia
 
-La arquitectura deberá evolucionar hacia consumidores idempotentes cuando aumente el uso de mensajería.
+La arquitectura ya incorpora idempotencia en la creación de Orders mediante:
 
-Un mismo evento podría ser recibido más de una vez:
+```text
+POST /orders
+Idempotency-Key: <unique-key>
+```
+
+Esta idempotencia forma parte del MVP y evita crear múltiples Orders ante reintentos del cliente.
+
+Conceptualmente:
+
+```text
+Client
+   │
+   ├── Request 1 ──► Order Service
+   │                    │
+   │                    ▼
+   │                 Order 100
+   │
+   └── Retry ──────► same Idempotency-Key
+                        │
+                        ▼
+                  resultado original
+```
+
+La idempotencia HTTP y la idempotencia de mensajería son responsabilidades diferentes.
+
+## Idempotencia de consumidores — Futuro
+
+Cuando aumente el uso de mensajería, los consumidores deberán poder procesar de forma segura eventos redeliverados o duplicados.
+
+Ejemplo:
 
 ```text
 ORDER_CREATED
@@ -259,9 +324,25 @@ ORDER_CREATED
 
 El procesamiento repetido no debería producir efectos de negocio incorrectos.
 
-La idempotencia se aplicará donde el flujo distribuido lo requiera.
+Esta capacidad se implementará donde el flujo distribuido lo requiera.
 
----
+Por lo tanto:
+
+```text
+HTTP Idempotency
+    ↓
+MVP
+    ↓
+POST /orders
+
+Consumer Idempotency
+    ↓
+Futuro
+    ↓
+mensajes / eventos
+```
+
+La idempotencia end-to-end también queda como una evolución futura y no forma parte del MVP.
 
 # Retry y DLQ
 
@@ -461,13 +542,15 @@ La arquitectura actual debe dejar puntos de extensión razonables sin implementa
 - Inventory;
 - Reservation;
 - Order Events;
+- Pricing / Offer;
 - Customer Projection;
 - Retry;
 - DLQ;
 - Publisher Confirms;
+- Consumer Idempotency;
 - Outbox;
 - Saga;
-- Idempotencia;
+- Idempotencia end-to-end;
 - Observabilidad distribuida.
 
 La regla general es:

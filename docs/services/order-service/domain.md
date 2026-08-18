@@ -143,21 +143,30 @@ porque representa el estado comercial registrado al momento de la compra.
 ```text
 Order
 │
+├── id
 ├── customerId
-│
 ├── items
 │    ├── OrderItem
 │    ├── OrderItem
 │    └── ...
 │
 ├── total
-│
-└── status
+├── status
+├── createdAt
+└── updatedAt
 ```
 
 `OrderItem` pertenece al Aggregate y no se manipula independientemente.
 
-El Aggregate es responsable de proteger sus propias invariantes y controlar sus transiciones de estado.
+El Aggregate es responsable de proteger sus propias invariantes, calcular el total y controlar sus transiciones de estado.
+
+El `id` de `Order` es generado por la base de datos y es incremental. La estrategia concreta de generación pertenece a la infraestructura de persistencia y no forma parte de las reglas de negocio del dominio.
+
+`createdAt` representa el momento de creación de la Order y es inmutable.
+
+`updatedAt` representa la última actualización relevante del recurso. No forma parte del contenido comercial histórico.
+
+El `total` es calculado por `Order` y posteriormente persistido como parte de su estado. No se recalcula a partir del catálogo actual para reconstruir una Order existente.
 
 ---
 
@@ -201,6 +210,17 @@ Una Order debe cumplir:
 8. `PAID` es terminal en el MVP.
 9. `CANCELLED` es terminal en el MVP.
 10. Una Order nunca se elimina.
+
+La unicidad de `productId` dentro de la Order se obtiene en el flujo de creación mediante la consolidación de productos duplicados. Por ejemplo:
+
+```text
+productId = 10, quantity = 2
+productId = 10, quantity = 3
+        ↓
+productId = 10, quantity = 5
+```
+
+La consolidación normaliza el input antes de construir los `OrderItem` y facilita futuras representaciones de la compra, especialmente Invoice.
 
 ## OrderItem
 
@@ -278,31 +298,55 @@ No se debe permitir cambiar el estado arbitrariamente mediante setters.
 
 # Construcción de la Order
 
-La construcción de la Order utiliza información validada del producto para crear los snapshots de sus OrderItems.
+La construcción de la Order utiliza información validada del producto para crear los snapshots de sus `OrderItem`.
+
+Antes de construir los `OrderItem`, los productos solicitados se consolidan por `productId`.
 
 ```text
+Request
+  │
+  ▼
+Consolidar productId duplicados
+  │
+  ▼
 ProductCatalog
-      │
-      ▼
+  │
+  ├── productName
+  ├── price
+  ├── availableStock
+  └── status
+  │
+  ▼
 OrderItem
-      │
-      ▼
+  │
+  ▼
 Order
-      │
-      ├── customerId
-      ├── items
-      ├── total
-      └── PENDING_PAYMENT
+  │
+  ├── id
+  ├── customerId
+  ├── items
+  ├── total
+  ├── PENDING_PAYMENT
+  ├── createdAt
+  └── updatedAt
 ```
 
 Durante la construcción:
 
+- se consolidan las cantidades de un mismo `productId`;
 - se crean los `OrderItem`;
+- cada `OrderItem` conserva `productName` y `unitPrice` como snapshot;
 - cada `OrderItem` calcula su subtotal;
 - `Order` calcula el total;
 - se establece `PENDING_PAYMENT`.
 
-Una vez creada la Order, sus items no se modifican en el MVP.
+El total calculado por `Order` forma parte del estado persistido de la Order.
+
+Una vez creada la Order, sus items y su contenido comercial no se modifican en el MVP.
+
+La validación de disponibilidad de stock pertenece al flujo de Application utilizando el `availableStock` conocido por `ProductCatalog`.
+
+El dominio de `Order` no reserva ni confirma stock. La reserva y la coordinación de concurrencia pertenecen a una futura responsabilidad de Inventory / Reservation.
 
 ---
 
@@ -318,6 +362,17 @@ Order
 OrderItem
 └── calcula subtotal
 ```
+
+El dominio no es responsable de:
+
+- consolidar el request HTTP;
+- resolver el actor autenticado;
+- determinar ownership;
+- consultar `ProductCatalog`;
+- persistir la Order;
+- gestionar `Idempotency-Key`.
+
+La consolidación de productos duplicados forma parte de la normalización del input en Application antes de construir el Aggregate.
 
 La coordinación del caso de uso pertenece a Application y se documenta en `use-cases.md`.
 

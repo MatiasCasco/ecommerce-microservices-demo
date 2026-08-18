@@ -19,55 +19,67 @@ La sincronización de `ProductCatalog` se documenta en `product-catalog.md`, `sy
 # Flujo Actual
 
 ```text
-                    Cliente
-                       │
-                       ▼
-                  POST /orders
-                       │
-                       ▼
-                Order Controller
-                       │
-                       ▼
-              Create Order Use Case
-                       │
-                       ▼
-              Resolver customerId
-                       │
-                       ▼
-              Consultar ProductCatalog
-                       │
-                       ▼
-                Validar productos
-                       │
-             ┌─────────┼─────────┐
-             │         │         │
-             ▼         ▼         ▼
-          ¿Existe?  ¿ACTIVE?  ¿Stock?
-             │         │         │
-             └─────────┴─────────┘
-                       │
-                       ▼
-               Construir OrderItem
-                       │
-                       ▼
-                 Construir Order
-                       │
-                       ▼
-              Calcular subtotales
-                       │
-                       ▼
-                 Calcular total
-                       │
-                       ▼
-              Persistir Order
-                + OrderItems
-                       │
-                       ▼
-              PENDING_PAYMENT
-                       │
-                       ▼
-                  HTTP 201
+                         Cliente
+                            │
+                            ▼
+                      POST /orders
+                            │
+                            ▼
+                   Order Controller
+                            │
+                            ▼
+                 Validar Idempotency-Key
+                            │
+                            ▼
+                Create Order Use Case
+                            │
+                            ▼
+                 Resolver Actor / customerId
+                            │
+                            ▼
+              Consolidar productos duplicados
+                            │
+                            ▼
+                    ProductCatalog
+                            │
+                ┌───────────┼───────────┐
+                ▼           ▼           ▼
+             ¿Existe?    ¿ACTIVE?    ¿Stock?
+                │           │           │
+                └───────────┴───────────┘
+                            │
+                            ▼
+                    Construir OrderItem
+                            │
+                            ▼
+                     Construir Order
+                            │
+                            ▼
+                  Calcular subtotales
+                            │
+                            ▼
+                     Calcular total
+                            │
+                            ▼
+                 Persistencia transaccional
+                            │
+                 ┌──────────┼──────────┐
+                 ▼          ▼          ▼
+               Order    OrderItems   IdempotencyRecord
+                 │          │          │
+                 └──────────┴──────────┘
+                            │
+                            ▼
+                          COMMIT
+                            │
+                            ▼
+                     PENDING_PAYMENT
+                            │
+                            ▼
+                        HTTP 201
 ```
+
+La creación de `Order`, sus `OrderItem` y la información necesaria para garantizar la idempotencia forman parte de una operación transaccional consistente.
 
 ---
 
@@ -79,9 +91,17 @@ El cliente solicita la creación de una nueva Order mediante:
 POST /orders
 ```
 
+La solicitud debe incluir obligatoriamente:
+
+```http
+Idempotency-Key: <unique-key>
+```
+
 El request contiene los productos y cantidades solicitadas.
 
-El `customerId` depende del actor:
+El contrato HTTP utiliza un único `CreateOrderRequest` para USER y ADMIN.
+
+Para el ownership de la Order:
 
 ```text
 USER
@@ -99,8 +119,16 @@ El cliente no controla los valores económicos de la Order.
 No se aceptan como valores confiables:
 
 - precio;
+- unitPrice;
 - subtotal;
-- total.
+- total;
+- status;
+- createdAt;
+- updatedAt.
+
+Si la misma `Idempotency-Key` se reutiliza con el mismo request, se considera el mismo intento lógico y no se crea una nueva Order.
+
+Si la misma `Idempotency-Key` se utiliza con un request diferente, la solicitud debe ser rechazada.
 
 ---
 
@@ -164,13 +192,47 @@ Los detalles se documentan en:
 
 ---
 
+# 3.1. Normalización de productos duplicados
+
+Antes de construir los `OrderItem`, Application consolida las líneas que tengan el mismo `productId`.
+
+Ejemplo:
+
+```text
+productId = 10, quantity = 2
+productId = 10, quantity = 3
+        ↓
+productId = 10, quantity = 5
+```
+
+El resultado normalizado contiene como máximo una línea por `productId`.
+
+La consolidación no es un error de negocio.
+
+Su objetivo es mantener la invariante del Aggregate y facilitar futuras representaciones de la Order, especialmente Invoice.
+
+```text
+Request items
+      │
+      ▼
+Consolidación por productId
+      │
+      ▼
+Items normalizados
+      │
+      ▼
+ProductCatalog
+```
+
+---
+
 # 4. Validación de productos
 
-Para cada producto solicitado se verifica:
+Para cada producto normalizado se verifica:
 
 - existencia;
 - estado `ACTIVE`;
-- stock disponible;
+- stock conocido suficiente;
 - cantidad válida.
 
 Conceptualmente:
@@ -184,10 +246,10 @@ Requested Product
        │
        ├── ¿Cantidad válida?
        │
-       └── ¿Stock suficiente?
+       └── ¿Stock conocido suficiente?
               │
               ▼
-        Producto válido
+         Producto válido
 ```
 
 Si alguna validación falla:
@@ -195,6 +257,12 @@ Si alguna validación falla:
 ```text
 No se crea la Order.
 ```
+
+La validación de stock utiliza el `availableStock` conocido por `ProductCatalog`.
+
+Esta validación no representa una reserva de inventario.
+
+La reserva y la coordinación de concurrencia pertenecen a una futura responsabilidad de Inventory / Reservation.
 
 ---
 
@@ -282,15 +350,17 @@ El cálculo pertenece al dominio.
 
 # 8. Persistencia
 
-Una vez construido y validado el Aggregate:
+Una vez construido y validado el Aggregate, se persisten como una única unidad transaccional:
 
 ```text
 Order
   +
 OrderItems
+  +
+IdempotencyRecord
 ```
 
-se persisten como una única unidad transaccional.
+Conceptualmente:
 
 ```text
 BEGIN TRANSACTION
@@ -301,6 +371,9 @@ Persist Order
         ▼
 Persist OrderItems
         │
+        ▼
+Persist IdempotencyRecord
+        │
    ┌────┴────┐
    │         │
    ▼         ▼
@@ -310,7 +383,9 @@ Persist OrderItems
 COMMIT    ROLLBACK
 ```
 
-No debe quedar una Order parcialmente persistida respecto de sus Items.
+No debe quedar una Order parcialmente persistida respecto de sus Items ni debe quedar una Order creada sin la información necesaria para garantizar la idempotencia.
+
+La persistencia del `total` forma parte de la misma operación.
 
 ---
 
@@ -334,16 +409,25 @@ Si todo el flujo finaliza correctamente:
 
 ```text
 Order
+├── id
 ├── customerId
 ├── items
 ├── total
-└── PENDING_PAYMENT
+├── PENDING_PAYMENT
+├── createdAt
+└── updatedAt
 ```
 
 La API responde con:
 
 ```text
 HTTP 201 Created
+```
+
+y devuelve un:
+
+```text
+OrderResponse
 ```
 
 La respuesta y el contrato HTTP se documentan en:
@@ -355,6 +439,8 @@ api.md
 ---
 
 # Flujo ante errores
+
+## Error de validación de negocio
 
 Si una validación de negocio falla:
 
@@ -371,6 +457,44 @@ ERROR
 No se crea Order
 ```
 
+Ejemplos:
+
+- producto inexistente;
+- producto `INACTIVE`;
+- stock conocido insuficiente;
+- cantidad inválida;
+- request inválido;
+- Order no cancelable.
+
+## Idempotency-Key ya utilizada
+
+Si la clave ya existe:
+
+```text
+Idempotency-Key
+      │
+      ▼
+¿Existe?
+  │       │
+  │ NO    │ SÍ
+  ▼       ▼
+continuar  comparar request
+              │
+       ┌──────┴──────┐
+       ▼             ▼
+     mismo         diferente
+       │             │
+       ▼             ▼
+resultado          ERROR
+original
+```
+
+Si el request es el mismo, se devuelve el resultado de la operación original y no se crea otra Order.
+
+Si el request es diferente, se rechaza la solicitud.
+
+## Error de persistencia
+
 Si ocurre un error durante la persistencia:
 
 ```text
@@ -380,7 +504,7 @@ BEGIN TRANSACTION
       ERROR
         │
         ▼
-    ROLLBACK
+     ROLLBACK
 ```
 
 No se debe considerar creada una Order cuya transacción no haya finalizado correctamente.

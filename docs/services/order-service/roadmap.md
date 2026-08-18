@@ -49,6 +49,16 @@ Definir completamente el modelo de dominio antes de comenzar la implementación.
 - [x] Definir inmutabilidad del contenido comercial
 - [x] Definir transiciones de estado
 - [x] Definir estado inicial `PENDING_PAYMENT`
+- [x] Definir `Order.id` generado incrementalmente por la base de datos
+- [x] Definir cálculo y persistencia del `Order.total`
+- [x] Definir consolidación de productos duplicados
+- [x] Definir validación de stock sin reserva
+- [x] Definir precio como snapshot y aceptar consistencia eventual
+- [x] Definir `customerId` como ownership
+- [x] Definir DTOs de Create/Response/Summary
+- [x] Definir errores de negocio
+- [x] Definir idempotencia de `POST /orders`
+- [x] Definir State Machine completa
 
 Documentación principal:
 
@@ -90,9 +100,13 @@ Definir el contrato externo de Order Service una vez establecido el modelo de do
 - [x] Definir `POST /orders`
 - [x] Definir `GET /orders/{id}`
 - [x] Definir `GET /orders`
-- [x] Definir operación futura de cancelación
+- [x] Definir `PATCH /orders/{id}/cancel`
 - [x] Definir reglas generales del request
 - [x] Definir responsabilidades de DTOs
+- [x] Definir `Idempotency-Key` obligatorio para `POST /orders`
+- [x] Definir `OrderResponse`
+- [x] Definir `OrderSummaryResponse`
+- [x] Definir consolidación de productos duplicados en Create Order
 - [ ] Completar contrato técnico OpenAPI/Swagger
 
 Documentación principal:
@@ -117,13 +131,17 @@ Implementar el caso de uso principal utilizando las decisiones cerradas en las f
 - [ ] Implementar Create Order Use Case
 - [ ] Integrar `ProductCatalog`
 - [ ] Implementar persistencia de Order + OrderItems
-- [ ] Implementar transacción
+- [ ] Implementar persistencia de `IdempotencyRecord`
+- [ ] Implementar transacción de Order + OrderItems + IdempotencyRecord
+- [ ] Implementar consolidación de productos duplicados
 - [ ] Implementar DTOs
 - [ ] Implementar Controller
 - [ ] Implementar manejo de errores
 - [ ] Implementar pruebas unitarias del dominio
 - [ ] Implementar pruebas del caso de uso
 - [ ] Implementar pruebas de integración
+- [ ] Probar retry con la misma `Idempotency-Key`
+- [ ] Probar rechazo de misma key con request diferente
 
 ---
 
@@ -157,7 +175,7 @@ Implementar las transiciones de estado definidas por el dominio.
 - [ ] Implementar transición a `CANCELLED`
 - [ ] Implementar transición a `PAID` cuando exista el flujo de Payment
 - [ ] Impedir transiciones inválidas
-- [ ] Implementar endpoint de cancelación cuando corresponda
+- [ ] Implementar `PATCH /orders/{id}/cancel`
 - [ ] Agregar pruebas de la State Machine
 
 ---
@@ -270,6 +288,30 @@ Fortalecer la comunicación mediante eventos.
 - [ ] Manejo de mensajes duplicados
 - [ ] Observabilidad de procesamiento
 
+### Aclaración sobre idempotencia
+
+La idempotencia de creación de Order mediante:
+
+```text
+Idempotency-Key
+```
+
+forma parte del MVP y se implementa durante la Fase 4.
+
+Esta fase se refiere a la idempotencia de consumidores y mensajes, que resuelve problemas diferentes:
+
+```text
+HTTP Idempotency
+POST /orders
+        ↓
+evitar Orders duplicadas por retry del cliente
+
+Consumer Idempotency
+evento / mensaje
+        ↓
+evitar efectos duplicados por redelivery
+```
+
 ---
 
 # Fase 12 — Consistencia y Arquitectura Avanzada
@@ -286,6 +328,7 @@ Resolver problemas de consistencia entre persistencia y publicación de eventos 
 - [ ] Idempotencia end-to-end
 - [ ] Observabilidad distribuida
 - [ ] Customer Projection si aparece una necesidad concreta
+- [ ] Pricing / Offer si aparecen necesidades de pricing más sofisticadas
 
 Estas capacidades no deben implementarse anticipadamente sin un problema real que las justifique.
 
@@ -303,6 +346,11 @@ Application / Security
 API
         ↓
 Create Order
+        │
+        ├── Idempotency-Key
+        ├── consolidación de items
+        ├── ProductCatalog
+        └── Order + OrderItems + IdempotencyRecord
         ↓
 Consultas
         ↓
@@ -316,10 +364,14 @@ Payment
         ↓
 Inventory / Reservation
         ↓
-Resiliencia
+Resiliencia de mensajería
         ↓
-Outbox / Saga / Idempotencia
+Outbox / Saga / consistencia avanzada
 ```
+
+La idempotencia HTTP de `POST /orders` no queda como una etapa futura: forma parte de la implementación de Create Order.
+
+La idempotencia de consumidores y la idempotencia end-to-end pertenecen a las fases posteriores de mensajería y consistencia.
 
 ---
 

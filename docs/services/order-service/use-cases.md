@@ -76,6 +76,7 @@ Un `ADMIN` puede crear una Order para un customer especificado.
 
 - El actor está autenticado.
 - El actor está autorizado para crear una Order.
+- `Idempotency-Key` está presente.
 - Los items están presentes.
 - Cada item tiene una cantidad válida.
 - El customer requerido por el caso de uso es válido.
@@ -89,7 +90,18 @@ La validación de customer no implica actualmente una `CustomerProjection`; esa 
 
 ## Input
 
-Conceptualmente:
+El contrato HTTP utiliza:
+
+```text
+CreateOrderRequest
+├── customerId?
+└── items[]
+     └── CreateOrderItemRequest
+         ├── productId
+         └── quantity
+```
+
+Application transforma el DTO HTTP en un comando interno, conceptualmente:
 
 ```text
 CreateOrderCommand
@@ -103,7 +115,9 @@ CreateOrderCommand
 
 El `actor` permite al caso de uso aplicar las reglas de autorización y ownership.
 
-El dominio no recibe información sobre JWT, roles o Spring Security.
+El `Idempotency-Key` se recibe desde la capa API y forma parte de la coordinación de idempotencia del caso de uso.
+
+El dominio no recibe información sobre JWT, roles, Spring Security ni `Idempotency-Key`.
 
 ---
 
@@ -121,7 +135,20 @@ ADMIN
 
 ### Product
 
-Para cada producto:
+Antes de construir los `OrderItem`, Application normaliza los items consolidando cantidades del mismo `productId`.
+
+Ejemplo:
+
+```text
+productId = 10, quantity = 2
+productId = 10, quantity = 3
+        ↓
+productId = 10, quantity = 5
+```
+
+Los duplicados no son un error.
+
+Para cada producto normalizado:
 
 ```text
 product exists
@@ -130,6 +157,10 @@ status = ACTIVE
         +
 availableStock >= requested quantity
 ```
+
+La validación de stock utiliza el stock conocido por `ProductCatalog` y no constituye una reserva.
+
+La reserva de inventario pertenece a una futura responsabilidad de Inventory / Reservation.
 
 ### Precios
 
@@ -140,6 +171,10 @@ El cliente no define:
 - `total`.
 
 Los valores económicos se obtienen de `ProductCatalog`.
+
+`OrderItem.unitPrice` conserva el precio conocido como snapshot histórico.
+
+`Order` calcula el total y dicho total forma parte del estado persistido.
 
 ---
 
@@ -169,7 +204,7 @@ Order Aggregate
 
 ## Dominio
 
-Para cada producto válido:
+Para cada producto normalizado y validado:
 
 ```text
 ProductCatalog
@@ -183,32 +218,43 @@ Se construye el Aggregate:
 ```text
 Order
 │
+├── id
 ├── customerId
 ├── OrderItems
 ├── total
-└── PENDING_PAYMENT
+├── PENDING_PAYMENT
+├── createdAt
+└── updatedAt
 ```
 
 El dominio:
 
 - construye `Order`;
 - construye `OrderItem`;
+- conserva `productName` y `unitPrice` como snapshot;
 - calcula subtotales;
 - calcula el total;
-- protege sus invariantes.
+- protege sus invariantes;
+- controla las transiciones de estado.
+
+La generación del `id` incremental pertenece a la persistencia y es gestionada por la base de datos.
 
 ---
 
 ## Persistencia
 
-La Order y sus Items se persisten como una única unidad transaccional.
+La Order, sus Items y el registro necesario para garantizar la idempotencia se persisten como una única unidad transaccional.
+
+Conceptualmente:
 
 ```text
 BEGIN TRANSACTION
         │
         ├── Order
         │
-        └── OrderItems
+        ├── OrderItems
+        │
+        └── IdempotencyRecord
         │
         ▼
       COMMIT
@@ -220,7 +266,9 @@ Si falla una parte:
 ROLLBACK
 ```
 
-No debe existir una Order incompleta.
+No debe existir una Order incompleta ni una Order creada sin la información necesaria para garantizar la idempotencia.
+
+El `total` calculado por `Order` también se persiste dentro de la misma transacción.
 
 ---
 
@@ -231,13 +279,20 @@ Una creación exitosa produce:
 ```text
 Order
 │
+├── id
 ├── customerId
 ├── items
 ├── total
-└── status = PENDING_PAYMENT
+├── status = PENDING_PAYMENT
+├── createdAt
+└── updatedAt
 ```
 
-La API responde con `HTTP 201 Created`.
+La API responde con `HTTP 201 Created` y devuelve un `OrderResponse`.
+
+Si se repite una solicitud con la misma `Idempotency-Key` y el mismo request, se devuelve el resultado de la operación original sin crear una nueva Order.
+
+Si la misma `Idempotency-Key` se utiliza con un request diferente, la operación se rechaza.
 
 ---
 
@@ -247,11 +302,15 @@ El caso de uso debe rechazar la operación cuando:
 
 - el actor no está autorizado;
 - un `USER` intenta utilizar otro `customerId`;
+- falta `Idempotency-Key`;
 - faltan items;
 - la cantidad es inválida;
 - el producto no existe;
 - el producto está `INACTIVE`;
-- el stock conocido es insuficiente.
+- el stock conocido es insuficiente;
+- una `Idempotency-Key` existente se utiliza con un request diferente.
+
+Una `Idempotency-Key` repetida con el mismo request no es un error: representa el mismo intento lógico y devuelve el resultado original.
 
 Si falla la persistencia, la transacción debe revertirse.
 
@@ -326,9 +385,15 @@ Order Repository
 
 ## Resultado
 
-Se devuelve la representación de la Order solicitada.
+Se devuelve:
+
+```text
+OrderResponse
+```
 
 La información histórica de `OrderItem` proviene de la Order almacenada.
+
+No se reconstruye la representación desde el estado actual de `ProductCatalog`.
 
 ---
 
@@ -413,7 +478,15 @@ Un filtro enviado por un `USER` no debe permitirle acceder a Orders de otro cust
 
 ## Resultado
 
-Se devuelve una colección paginada de Orders.
+Se devuelve:
+
+```text
+Page<OrderSummaryResponse>
+```
+
+`OrderSummaryResponse` es una representación resumida y no incluye los `OrderItem`.
+
+El detalle completo se obtiene mediante `Get Order`.
 
 ---
 
@@ -523,6 +596,10 @@ CANCELLED
 ```
 
 si la transición fue válida.
+
+La respuesta del caso de uso se representa mediante `OrderResponse`.
+
+El caso de uso no modifica directamente `status`; invoca el comportamiento del Aggregate.
 
 ---
 

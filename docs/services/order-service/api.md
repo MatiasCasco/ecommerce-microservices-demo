@@ -35,14 +35,53 @@ Order Service expone operaciones para:
 
 Crea una nueva Order.
 
+### Idempotencia
+
+La creación de una Order requiere obligatoriamente el header:
+
+```http
+Idempotency-Key: <unique-key>
+```
+
+La clave identifica un intento lógico de creación.
+
+Si se repite una solicitud con:
+
+```text
+misma Idempotency-Key
++
+mismo request
+```
+
+se considera el mismo intento lógico y no se crea una nueva Order.
+
+Si una `Idempotency-Key` previamente utilizada llega asociada a un request diferente, la solicitud debe ser rechazada.
+
+La persistencia necesaria para garantizar la idempotencia se realiza en PostgreSQL y debe mantener consistencia transaccional con la creación de:
+
+```text
+Order
++
+OrderItems
+```
+
 ### Request
 
-El request contiene la información necesaria para identificar los productos y cantidades solicitadas.
+El contrato HTTP utiliza un único DTO para USER y ADMIN:
+
+```text
+CreateOrderRequest
+├── customerId?
+└── items[]
+    └── CreateOrderItemRequest
+        ├── productId
+        └── quantity
+```
 
 Para el ownership de la Order:
 
 - `ROLE_USER`: el `customerId` se obtiene del actor autenticado y no se confía en un `customerId` enviado por el cliente.
-- `ROLE_ADMIN`: el `customerId` debe ser proporcionado en el request.
+- `ROLE_ADMIN`: el `customerId` debe ser proporcionado en el request cuando la autorización lo permita.
 
 Los productos se identifican mediante:
 
@@ -51,9 +90,30 @@ Los productos se identifican mediante:
 
 El cliente no define:
 
-- precio;
-- subtotal;
-- total.
+- `price`;
+- `unitPrice`;
+- `subtotal`;
+- `total`;
+- `status`;
+- `createdAt`;
+- `updatedAt`.
+
+### Normalización de productos duplicados
+
+Si el request contiene más de una línea para el mismo `productId`, las cantidades se consolidan antes de construir los `OrderItem`.
+
+Ejemplo:
+
+```text
+productId = 10, quantity = 2
+productId = 10, quantity = 3
+        ↓
+productId = 10, quantity = 5
+```
+
+La Order resultante contiene como máximo un `OrderItem` por `productId`.
+
+Esto facilita también futuras representaciones de la compra, especialmente Invoice.
 
 ### Flujo funcional
 
@@ -63,14 +123,20 @@ Durante la creación:
 Request
    │
    ▼
-Validación
+Validar Idempotency-Key
+   │
+   ▼
+Resolver Actor / customerId
+   │
+   ▼
+Consolidar productos duplicados
    │
    ▼
 ProductCatalog
    │
    ├── producto existe
    ├── producto ACTIVE
-   └── stock disponible
+   └── stock conocido suficiente
    │
    ▼
 Order Aggregate
@@ -80,15 +146,24 @@ Order Aggregate
    └── total
    │
    ▼
-Persistencia
+Persistencia transaccional
+   │
+   ├── Order
+   ├── OrderItems
+   └── IdempotencyRecord
    │
    ▼
-PENDING_PAYMENT
+COMMIT
+   │
+   ▼
+OrderResponse
 ```
 
 La información del producto utilizada para construir los `OrderItem` proviene de `ProductCatalog`.
 
 Order Service no realiza una consulta REST a Product Service durante este flujo.
+
+La validación de stock utiliza el `availableStock` conocido por `ProductCatalog`. Esta validación no constituye una reserva de inventario.
 
 ### Estado inicial
 
@@ -96,6 +171,35 @@ Toda Order creada correctamente comienza en:
 
 ```text
 PENDING_PAYMENT
+```
+
+El `total` es calculado por `Order` y persistido como parte del estado de la Order.
+
+### Response
+
+Una creación exitosa devuelve:
+
+```text
+OrderResponse
+```
+
+con:
+
+```text
+OrderResponse
+├── id
+├── customerId
+├── items[]
+│   └── OrderItemResponse
+│       ├── productId
+│       ├── productName
+│       ├── unitPrice
+│       ├── quantity
+│       └── subtotal
+├── total
+├── status
+├── createdAt
+└── updatedAt
 ```
 
 ### Eventos
@@ -116,6 +220,31 @@ La publicación de eventos de Order pertenece a una evolución futura.
 
 Obtiene el detalle de una Order.
 
+### Response
+
+La respuesta utiliza:
+
+```text
+OrderResponse
+```
+
+```text
+OrderResponse
+├── id
+├── customerId
+├── items[]
+│   └── OrderItemResponse
+│       ├── productId
+│       ├── productName
+│       ├── unitPrice
+│       ├── quantity
+│       └── subtotal
+├── total
+├── status
+├── createdAt
+└── updatedAt
+```
+
 La respuesta representa el snapshot histórico de la compra.
 
 La información de los `OrderItem` proviene de la propia Order.
@@ -129,6 +258,9 @@ GET /orders/{id}
      Order
        │
        ▼
+OrderResponse
+       │
+       ▼
 Snapshot histórico
 ```
 
@@ -140,13 +272,54 @@ Snapshot histórico
 
 Obtiene un listado paginado de Orders.
 
-Características previstas:
+### Response
+
+La respuesta utiliza:
+
+```text
+Page<OrderSummaryResponse>
+```
+
+`OrderSummaryResponse` representa una versión resumida de la Order y no incluye `items`.
+
+```text
+OrderSummaryResponse
+├── id
+├── customerId
+├── total
+├── status
+├── createdAt
+└── updatedAt
+```
+
+### Características
 
 - paginación;
 - ordenamiento;
-- filtros.
+- filtro por `customerId`.
 
-Los criterios concretos de filtrado se definirán cuando corresponda al caso de uso.
+### Filtro por customerId
+
+El parámetro `customerId` permite filtrar las Orders según el actor autenticado.
+
+```http
+GET /orders?customerId=25
+```
+Las reglas son:
+
+
+```text
+USER
+ │
+ └── customerId se obtiene del actor autenticado
+     y no puede utilizarse para consultar Orders de otro customer.
+
+
+ADMIN
+ │
+ └── puede utilizar customerId para filtrar Orders
+     de un customer específico.
+```
 
 ---
 
@@ -154,21 +327,29 @@ Los criterios concretos de filtrado se definirán cuando corresponda al caso de 
 
 ## PATCH /orders/{id}/cancel
 
-**Estado: Futuro.**
-
-Permitirá cancelar una Order cuando la transición sea válida según las reglas del dominio.
+Permite cancelar una Order cuando la transición sea válida según las reglas del dominio.
 
 La transición definida actualmente es:
 
 ```text
 PENDING_PAYMENT
        │
-       │ cancel
+       │ cancel()
        ▼
 CANCELLED
 ```
 
 No se permite cancelar una Order que ya se encuentre en un estado terminal.
+
+La operación no recibe un nuevo estado desde el cliente. La transición es ejecutada por el comportamiento del Aggregate.
+
+### Response
+
+Una cancelación exitosa devuelve:
+
+```text
+OrderResponse
+```
 
 ---
 
@@ -190,10 +371,14 @@ Las transiciones del dominio se encuentran documentadas en `domain.md`.
 
 Las validaciones relacionadas con la creación de una Order incluyen:
 
+- `Idempotency-Key` obligatorio;
 - cantidades válidas;
 - existencia del producto;
 - producto en estado `ACTIVE`;
-- stock disponible.
+- stock conocido suficiente;
+- consolidación de productos duplicados.
+
+La validación de stock no representa una reserva de inventario.
 
 Las reglas de negocio del Aggregate se encuentran en `domain.md`.
 
@@ -256,17 +441,35 @@ El `customerId` de una Order no debe utilizarse para permitir que un `USER` oper
 
 # Respuestas y Errores
 
-Las respuestas exitosas y los errores seguirán un formato consistente con el resto del proyecto.
+Las respuestas exitosas utilizan los DTOs definidos por cada operación:
+
+```text
+POST /orders
+    → OrderResponse
+
+GET /orders/{id}
+    → OrderResponse
+
+GET /orders
+    → Page<OrderSummaryResponse>
+
+PATCH /orders/{id}/cancel
+    → OrderResponse
+```
 
 Los errores serán manejados mediante el mecanismo centralizado definido para Order Service y `common-lib`.
 
-El contrato exacto de:
+Entre los errores funcionales relevantes se encuentran:
 
-- status codes;
-- response DTOs;
-- error responses;
+- `OrderNotFound`;
+- `OrderNotCancellable`;
+- `ProductNotFound`;
+- `ProductInactive`;
+- `InsufficientStock`;
+- `InvalidOrderItem`;
+- errores relacionados con `Idempotency-Key`.
 
-se define en la especificación técnica de la API y en la documentación correspondiente de errores.
+El contrato técnico definitivo de status codes, schemas y error responses corresponde a OpenAPI/Swagger y a la documentación de errores.
 
 ---
 
@@ -293,7 +496,7 @@ La publicación de estos eventos se documentará en `future.md`, `decisions.md` 
 Cada documento mantiene una responsabilidad específica:
 
 - `domain.md` → modelo de dominio, invariantes y estados.
-- `use-cases.md` → comportamiento de los casos de uso.
+- `use-cases.md` → comportamiento de los casos de uso y coordinación de Application.
 - `security-authorization.md` → autenticación, autorización y ownership.
 - `order-flow.md` → flujos de negocio.
 - `product-catalog.md` → proyección local del catálogo.

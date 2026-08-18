@@ -21,6 +21,7 @@ Order Service es responsable de:
 - Construir y persistir Orders y sus `OrderItem`.
 - Aplicar las reglas del dominio de Order.
 - Aplicar las reglas de autorización propias de sus casos de uso.
+- Garantizar la idempotencia de `POST /orders` mediante `Idempotency-Key`.
 - Publicar eventos propios de Order como evolución futura.
 
 Order Service no es responsable de:
@@ -29,6 +30,7 @@ Order Service no es responsable de:
 - gestionar directamente productos;
 - gestionar pagos;
 - reservar inventario;
+- gestionar pricing/offer como capability independiente;
 - contener detalles de Spring Security dentro del dominio.
 
 ---
@@ -81,6 +83,7 @@ La sincronización y el consumo de eventos se documentan en:
 ```text
 Order
 │
+├── id
 ├── customerId
 │
 ├── OrderItem
@@ -91,11 +94,16 @@ Order
 │    └── subtotal
 │
 ├── total
-│
-└── status
+├── status
+├── createdAt
+└── updatedAt
 ```
 
 Cada `OrderItem` conserva un snapshot de la información comercial utilizada para la compra.
+
+El `total` es calculado por `Order` y persistido como parte de su estado.
+
+El `id` de `Order` es incremental y gestionado por la base de datos.
 
 La Order no depende posteriormente del catálogo para reconstruir su historial.
 
@@ -123,6 +131,8 @@ El caso de uso coordina:
 - actor autenticado;
 - autorización;
 - ownership;
+- `Idempotency-Key`;
+- consolidación de productos duplicados;
 - `ProductCatalog`;
 - Aggregate;
 - persistencia.
@@ -179,6 +189,7 @@ Operaciones principales:
 POST /orders
 GET  /orders/{id}
 GET  /orders
+PATCH /orders/{id}/cancel
 ```
 
 Las operaciones y sus DTOs se encuentran documentados en:
@@ -197,16 +208,22 @@ El flujo conceptual de creación es:
 Client
   │
   ▼
-Create Order
+POST /orders
   │
   ▼
-Authorization
+Idempotency-Key
+  │
+  ▼
+Authorization / Ownership
+  │
+  ▼
+Consolidate duplicate products
   │
   ▼
 ProductCatalog
   │
   ▼
-Validate Products
+Validate products and known stock
   │
   ▼
 Build OrderItems
@@ -215,16 +232,23 @@ Build OrderItems
 Build Order
   │
   ▼
-Calculate totals
+Calculate subtotals + total
   │
   ▼
-Persist Aggregate
+Persist Order + Items + IdempotencyRecord
+  │
+  ▼
+COMMIT
   │
   ▼
 PENDING_PAYMENT
 ```
 
 La creación de la Order no consulta Product Service mediante REST.
+
+La validación de stock utiliza el stock conocido por `ProductCatalog`; no representa una reserva de inventario.
+
+Los productos duplicados se consolidan antes de construir los `OrderItem`.
 
 El flujo completo se documenta en:
 
@@ -270,12 +294,20 @@ La proyección puede representar temporalmente un estado anterior mientras un ev
 ## Diseño definido
 
 - Aggregate `Order`.
-- `OrderItem`.
-- `OrderStatus`.
+- `OrderItem` como snapshot histórico.
+- `OrderStatus` y State Machine.
 - Invariantes del dominio.
+- `Order.id` incremental gestionado por la base de datos.
+- Cálculo y persistencia de `Order.total`.
+- Consolidación de productos duplicados.
+- Validación de existencia y stock conocido sin reserva.
+- Precio como snapshot y aceptación de consistencia eventual.
+- `customerId` como identificador de ownership.
 - Casos de uso.
 - Authorization y ownership.
-- API.
+- API y DTOs definitivos.
+- `Idempotency-Key` obligatorio para `POST /orders`.
+- Persistencia de idempotencia.
 - Flujo de creación de Order.
 - Evolución de Order Events.
 
@@ -283,10 +315,13 @@ La proyección puede representar temporalmente un estado anterior mientras un ev
 
 - Crear `Order` y `OrderItem`.
 - Implementar Create Order Use Case.
-- Implementar persistencia de Order.
-- Implementar consultas.
+- Implementar consolidación de productos duplicados.
+- Implementar persistencia de Order + OrderItems + IdempotencyRecord.
+- Implementar consultas y `OrderSummaryResponse`.
 - Implementar lifecycle de Order.
+- Implementar `PATCH /orders/{id}/cancel`.
 - Implementar pruebas del dominio y casos de uso.
+- Implementar pruebas de idempotencia.
 
 El estado detallado y el orden de implementación se encuentran en:
 
@@ -311,16 +346,21 @@ Order Events
 
 También se contemplan, cuando exista una necesidad concreta:
 
-- Inventory Reservation;
+- Inventory / Reservation;
 - Payment;
+- Pricing / Offer;
+- Order Events;
 - Retry;
 - Dead Letter Queue;
 - Publisher Confirms;
-- Idempotencia;
+- Consumer Idempotency;
+- Idempotencia end-to-end;
 - Outbox Pattern;
 - Saga Pattern;
 - Customer Projection;
 - observabilidad distribuida.
+
+La idempotencia HTTP mediante `Idempotency-Key` para `POST /orders` ya forma parte del MVP y no se considera una capacidad futura.
 
 La visión arquitectónica futura se encuentra en:
 
@@ -357,7 +397,7 @@ order-service/
 |---|---|
 | `README.md` | Visión general del servicio |
 | `domain.md` | Dominio, Aggregate, invariantes y comportamiento |
-| `use-cases.md` | Casos de uso |
+| `use-case.md` | Casos de uso |
 | `security-authorization.md` | Actor, autorización y ownership |
 | `api.md` | Contratos HTTP y DTOs |
 | `order-flow.md` | Flujos principales |
@@ -399,7 +439,10 @@ Order Service se desarrolla siguiendo:
 - Snapshot histórico;
 - bajo acoplamiento;
 - separación de responsabilidades;
-- evolución incremental.
+- evolución incremental;
+- consistencia eventual donde el desacoplamiento lo requiera;
+- separación entre validación de stock y reserva de inventario;
+- idempotencia en operaciones con efectos persistentes.
 
 La regla general del proyecto es:
 
