@@ -2,253 +2,415 @@
 
 ## Objetivo
 
-Este documento describe el dominio funcional de Order Service.
+Este documento describe el modelo de dominio de Order Service.
 
-No pretende explicar detalles de implementación.
+Su objetivo es definir:
 
-Su objetivo es documentar las reglas de negocio y las decisiones de diseño que dieron origen al modelo del dominio.
+- qué representa una `Order`;
+- qué representa un `OrderItem`;
+- el Aggregate;
+- las invariantes;
+- los estados;
+- las transiciones permitidas;
+- la inmutabilidad del historial.
+
+Las decisiones y justificaciones arquitectónicas se documentan en `decisions.md`.
+
+Los casos de uso se documentan en `use-cases.md`.
+
+La seguridad, autorización y ownership se documentan en `security-authorization.md`.
 
 ---
 
 # ¿Qué representa una Order?
 
-Una Order representa el compromiso de compra realizado por un cliente.
+Una `Order` representa el compromiso de compra realizado por un cliente.
 
-No representa el catálogo.
+No representa el catálogo ni el estado actual de los productos.
 
-No representa el estado actual de los productos.
+Representa la información histórica de la compra en el momento en que fue creada.
 
-Representa una fotografía (Snapshot) del momento en que la compra fue realizada.
+Una vez creada, debe conservar la información necesaria para reconstruir lo que fue comprado aunque el catálogo cambie posteriormente.
 
-Una vez creada, la orden debe conservar toda la información necesaria para reconstruir la compra, incluso si el catálogo cambia posteriormente.
+```text
+Product Service
+      │
+      │ estado actual
+      ▼
+ProductCatalog
+      │
+      │ snapshot
+      ▼
+OrderItem
+      │
+      ▼
+Order
+      │
+      └── historial de la compra
+```
 
 ---
 
 # Modelo Operacional vs Modelo Histórico
 
-Uno de los principios fundamentales del proyecto es separar ambos modelos.
+## Modelo operacional
 
-## Product Service
+`Product Service` representa el estado actual del catálogo.
 
-Representa el modelo operacional.
+Por ejemplo:
 
-Siempre refleja el estado actual de los productos.
+- nombre actual;
+- precio actual;
+- stock actual;
+- estado actual.
 
-Ejemplo:
+```text
+Product Service
+      │
+      ▼
+Estado actual del producto
+```
 
-- nombre actual
-- precio actual
-- stock actual
-- estado actual
+## Modelo histórico
 
----
+`Order Service` conserva el estado comercial registrado al momento de la compra.
 
-## Order Service
+```text
+ProductCatalog
+      │
+      │ información vigente
+      ▼
+OrderItem
+      │
+      │ snapshot histórico
+      ▼
+Order
+```
 
-Representa el modelo histórico.
-
-Cada orden conserva:
-
-- producto comprado
-- precio pagado
-- cantidad comprada
-- subtotal
-- total
-
-La orden nunca depende nuevamente del catálogo para reconstruir una compra.
+Una Order existente no depende del catálogo actual para reconstruir la compra.
 
 ---
 
 # Snapshot
 
-Una orden funciona como un Snapshot del catálogo.
+`OrderItem` conserva un snapshot de la información comercial del producto.
 
 Ejemplo:
 
+```text
 Día 1
 
 Notebook Lenovo
+Precio: Gs. 4.500.000
+        │
+        ▼
+      Compra
+        │
+        ▼
+    OrderItem
+        │
+        ├── productId
+        ├── productName
+        ├── unitPrice
+        ├── quantity
+        └── subtotal
+```
 
-Precio:
+Si posteriormente el producto cambia:
 
-Gs. 4.500.000
-
-↓
-
-Cliente compra.
-
-↓
-
-Se crea la Order.
-
-↓
-
+```text
 Día 10
 
-El administrador modifica:
-
 Notebook Lenovo LOQ Gen 10
+Precio: Gs. 5.300.000
+```
 
-Precio:
+la Order existente continúa conservando:
 
-Gs. 5.300.000
-
-↓
-
-La orden continúa mostrando:
-
+```text
 Notebook Lenovo
-
 Gs. 4.500.000
+```
 
-porque representa el estado existente al momento de la compra.
+porque representa el estado comercial registrado al momento de la compra.
 
 ---
 
-# Aggregate Root
+# Order Aggregate
 
-Order es el Aggregate Root del dominio.
+`Order` es el **Aggregate Root**.
 
-Toda modificación del agregado ocurre a través de Order.
+```text
+Order
+│
+├── id
+├── customerId
+├── items
+│    ├── OrderItem
+│    ├── OrderItem
+│    └── ...
+│
+├── total
+├── status
+├── createdAt
+└── updatedAt
+```
 
-OrderItem nunca será manipulado de forma independiente.
+`OrderItem` pertenece al Aggregate y no se manipula independientemente.
 
-Responsabilidades de Order:
+El Aggregate es responsable de proteger sus propias invariantes, calcular el total y controlar sus transiciones de estado.
 
-- administrar OrderItems
-- calcular el total
-- controlar el estado
-- garantizar la consistencia del agregado
+El `id` de `Order` es generado por la base de datos y es incremental. La estrategia concreta de generación pertenece a la infraestructura de persistencia y no forma parte de las reglas de negocio del dominio.
+
+`createdAt` representa el momento de creación de la Order y es inmutable.
+
+`updatedAt` representa la última actualización relevante del recurso. No forma parte del contenido comercial histórico.
+
+El `total` es calculado por `Order` y posteriormente persistido como parte de su estado. No se recalcula a partir del catálogo actual para reconstruir una Order existente.
 
 ---
 
 # OrderItem
 
-OrderItem representa una línea de compra.
-
-Cada OrderItem conserva información histórica.
+`OrderItem` representa una línea de compra.
 
 Campos principales:
 
-- productId
-- productName
-- unitPrice
-- quantity
-- subtotal
+- `productId`
+- `productName`
+- `unitPrice`
+- `quantity`
+- `subtotal`
 
-Su responsabilidad es representar exactamente lo que el cliente compró.
+Su responsabilidad principal es representar exactamente lo que fue comprado.
+
+El subtotal se obtiene mediante:
+
+```text
+subtotal = unitPrice × quantity
+```
+
+El `OrderItem` conserva el precio y nombre del producto correspondientes al momento de la compra.
 
 ---
 
-# Responsabilidades del Dominio
+# Invariantes
 
-El dominio conoce sus propias reglas.
+## Order
 
-Order conoce:
+Una Order debe cumplir:
 
-- cómo agregar Items
-- cómo eliminar Items
-- cómo calcular el total
+1. Debe contener al menos un `OrderItem`.
+2. Un `productId` no puede repetirse dentro de la misma Order.
+3. `total` debe ser igual a la suma de los subtotales.
+4. El contenido comercial es inmutable una vez creada.
+5. Toda Order comienza en `PENDING_PAYMENT`.
+6. `PENDING_PAYMENT` puede pasar a `PAID`.
+7. `PENDING_PAYMENT` puede pasar a `CANCELLED`.
+8. `PAID` es terminal en el MVP.
+9. `CANCELLED` es terminal en el MVP.
+10. Una Order nunca se elimina.
 
-OrderItem conoce:
+La unicidad de `productId` dentro de la Order se obtiene en el flujo de creación mediante la consolidación de productos duplicados. Por ejemplo:
 
-- cómo calcular su subtotal
+```text
+productId = 10, quantity = 2
+productId = 10, quantity = 3
+        ↓
+productId = 10, quantity = 5
+```
 
-Los Services únicamente coordinan el caso de uso.
+La consolidación normaliza el input antes de construir los `OrderItem` y facilita futuras representaciones de la compra, especialmente Invoice.
+
+## OrderItem
+
+Cada OrderItem debe cumplir:
+
+1. `quantity > 0`.
+2. `unitPrice > 0`.
+3. `subtotal = unitPrice × quantity`.
+4. `productName` representa el nombre del producto al momento de la compra.
+5. `unitPrice` representa el precio del producto al momento de la compra.
+
+---
+
+# Inmutabilidad del Historial
+
+Una vez creada una Order, no se modifica su información comercial.
+
+Son inmutables:
+
+- `productId`;
+- `productName`;
+- `unitPrice`;
+- `quantity`;
+- `subtotal`;
+- `total`;
+- `customerId`.
+
+La Order representa un documento histórico.
+
+El estado de la Order sí puede cambiar, pero únicamente mediante las transiciones permitidas por el Aggregate.
 
 ---
 
 # Estados de la Orden
 
-Estados iniciales definidos:
+El MVP define:
 
-- PENDING_PAYMENT
-- PAID
-- CANCELLED
-
-Las órdenes nunca son eliminadas.
-
-Se mantienen para:
-
-- auditoría
-- trazabilidad
-- métricas
-- análisis del negocio
+- `PENDING_PAYMENT`
+- `PAID`
+- `CANCELLED`
 
 ---
 
-# Principios del Request
+# State Machine
 
-El cliente nunca define:
+```text
+                 ┌──────────┐
+                 │          ▼
+        ┌──────────────────────────┐
+        │     PENDING_PAYMENT      │
+        └────────────┬─────────────┘
+                     │
+              ┌──────┴──────┐
+              │             │
+           pay()         cancel()
+              │             │
+              ▼             ▼
+        ┌──────────┐   ┌───────────┐
+        │   PAID   │   │ CANCELLED │
+        └──────────┘   └───────────┘
+          terminal       terminal
+```
 
-- precio
-- subtotal
-- total
+El comportamiento del Aggregate representa las transiciones:
 
-El cliente únicamente informa:
+```text
+Order
+├── pay()
+└── cancel()
+```
 
-- customerId
-- productos
-- cantidades
-
-Todos los importes son calculados por el servidor.
-
----
-
-# Principios del Dominio
-
-Durante el diseño se adoptaron los siguientes principios.
-
-## Single Source of Truth
-
-Product Service continúa siendo el dueño del catálogo.
-
-Order Service únicamente mantiene una proyección local sincronizada mediante eventos.
-
----
-
-## Bajo Acoplamiento
-
-Order Service nunca consulta Product Service durante la creación de una orden.
-
-Toda la validación ocurre utilizando ProductCatalog.
+No se debe permitir cambiar el estado arbitrariamente mediante setters.
 
 ---
 
-## Consistencia
+# Construcción de la Order
 
-La creación de la orden ocurre dentro de una única transacción.
+La construcción de la Order utiliza información validada del producto para crear los snapshots de sus `OrderItem`.
 
-No pueden existir órdenes parcialmente persistidas.
+Antes de construir los `OrderItem`, los productos solicitados se consolidan por `productId`.
+
+```text
+Request
+  │
+  ▼
+Consolidar productId duplicados
+  │
+  ▼
+ProductCatalog
+  │
+  ├── productName
+  ├── price
+  ├── availableStock
+  └── status
+  │
+  ▼
+OrderItem
+  │
+  ▼
+Order
+  │
+  ├── id
+  ├── customerId
+  ├── items
+  ├── total
+  ├── PENDING_PAYMENT
+  ├── createdAt
+  └── updatedAt
+```
+
+Durante la construcción:
+
+- se consolidan las cantidades de un mismo `productId`;
+- se crean los `OrderItem`;
+- cada `OrderItem` conserva `productName` y `unitPrice` como snapshot;
+- cada `OrderItem` calcula su subtotal;
+- `Order` calcula el total;
+- se establece `PENDING_PAYMENT`.
+
+El total calculado por `Order` forma parte del estado persistido de la Order.
+
+Una vez creada la Order, sus items y su contenido comercial no se modifican en el MVP.
+
+La validación de disponibilidad de stock pertenece al flujo de Application utilizando el `availableStock` conocido por `ProductCatalog`.
+
+El dominio de `Order` no reserva ni confirma stock. La reserva y la coordinación de concurrencia pertenecen a una futura responsabilidad de Inventory / Reservation.
 
 ---
 
-## Inmutabilidad del Historial
+# Responsabilidades del Dominio
 
-Una vez creada una orden:
+```text
+Order
+├── protege invariantes
+├── administra OrderItems
+├── calcula total
+└── controla transiciones de estado
 
-- el nombre del producto no cambia
-- el precio no cambia
-- la cantidad no cambia
-- el subtotal no cambia
+OrderItem
+└── calcula subtotal
+```
 
-La orden representa un documento histórico.
+El dominio no es responsable de:
+
+- consolidar el request HTTP;
+- resolver el actor autenticado;
+- determinar ownership;
+- consultar `ProductCatalog`;
+- persistir la Order;
+- gestionar `Idempotency-Key`.
+
+La consolidación de productos duplicados forma parte de la normalización del input en Application antes de construir el Aggregate.
+
+La coordinación del caso de uso pertenece a Application y se documenta en `use-cases.md`.
 
 ---
 
-# Evolución del Dominio
+# Límites del Dominio
 
-El modelo fue diseñado para evolucionar gradualmente.
+El dominio no conoce:
 
-Próximas etapas:
+- JWT;
+- Spring Security;
+- `SecurityContext`;
+- RabbitMQ;
+- REST;
+- Controllers;
+- Repositories;
+- API Gateway.
 
-- Payment Service
-- Inventory Reservation
-- Order Events
-- Notification Service
-- Saga Pattern
-- Outbox Pattern
-- Idempotencia
-- Resiliencia
+La autenticación, autorización y ownership se documentan en `security-authorization.md`.
 
-Cada nueva funcionalidad deberá respetar los principios establecidos en este documento.
+La integración con Product Service y la proyección `ProductCatalog` se documentan en:
+
+- `product-catalog.md`;
+- `synchronization.md`;
+- `event-consumption.md`.
+
+---
+
+# Principio del Modelo
+
+El objetivo del dominio es mantener una representación:
+
+```text
+válida
+  +
+consistente
+  +
+históricamente reconstruible
+```
+
+sin acoplar `Order` a la infraestructura que la rodea.
