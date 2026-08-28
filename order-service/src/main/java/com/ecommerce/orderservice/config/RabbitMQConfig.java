@@ -2,7 +2,7 @@ package com.ecommerce.orderservice.config;
 
 import com.ecommerce.common.event.constants.EventConstants;
 import com.ecommerce.common.event.constants.EventRoutingKey;
-import com.ecommerce.orderservice.event.constants.RabbitMQConstants;
+import com.ecommerce.orderservice.shared.constants.RabbitMQConstants;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;

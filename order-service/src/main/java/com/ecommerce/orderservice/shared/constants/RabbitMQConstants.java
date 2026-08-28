@@ -1,4 +1,4 @@
-package com.ecommerce.orderservice.event.constants;
+package com.ecommerce.orderservice.shared.constants;
 
 public final class RabbitMQConstants {
 

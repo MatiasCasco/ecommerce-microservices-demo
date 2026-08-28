@@ -1,8 +1,8 @@
-package com.ecommerce.orderservice.service;
+package com.ecommerce.orderservice.application.port.in;
 
 import com.ecommerce.common.event.model.*;
 
-public interface ProductCatalogService {
+public interface ProductCatalogSynchronizationUseCase {
 
     void createProduct(ProductCreatedEvent event);
 

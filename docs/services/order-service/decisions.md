@@ -17,6 +17,21 @@ Las decisiones transversales de toda la arquitectura se documentan mediante ADR 
 
 ---
 
+# Arquitectura
+ 
+ Order Service utiliza Hexagonal Architecture como estrategia de organizacion interna.
+
+ La arquitectura no modifica las decisiones funcionales ni de dominio previamente definidas.
+
+ La separacion sera:
+ - Domain
+ - Application
+ - Ports
+ - Adapters
+ - Infrastructure
+
+---
+
 # Decisiones del Dominio
 
 ## Order como Aggregate Root
