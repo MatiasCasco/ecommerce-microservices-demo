@@ -774,7 +774,41 @@ No debe quedar una Order persistida sin su registro de idempotencia ni viceversa
 
 Los errores que representan reglas del negocio deben mantenerse separados de fallos de infraestructura.
 
-Casos de negocio relevantes:
+Los errores se clasifican según la responsabilidad donde se originan.
+
+### Errores del Dominio
+
+Los errores producidos por las invariantes del Aggregate pertenecen al Domain y deben representarse mediante excepciones propias del dominio.
+
+Estas excepciones:
+
+* no dependen de Spring;
+* no dependen de HTTP;
+* no dependen de `BusinessException`;
+* no dependen de `ErrorCode`;
+* no conocen códigos ni status HTTP.
+
+Las invariantes de `OrderItem` podrán producir errores como:
+
+```text
+InvalidOrderItem
+```
+
+Las invariantes de `Order` podrán producir errores como:
+
+```text
+InvalidOrder
+```
+
+Estos errores representan una violación de una regla propia del modelo de dominio.
+
+El dominio no debe conocer cómo estos errores serán transformados posteriormente en una respuesta HTTP.
+
+### Errores de Application
+
+Los errores derivados de decisiones del caso de uso pertenecen a Application.
+
+Casos relevantes:
 
 ```text
 ProductNotFound
@@ -783,26 +817,72 @@ InsufficientStock
 OrderNotFound
 OrderNotCancellable
 UnauthorizedOrderAccess
-InvalidOrderItem
 ```
 
-Los duplicados de productos no son un error: se consolidan.
+Estos errores representan situaciones que Application debe resolver al coordinar el caso de uso, sus dependencias y las reglas correspondientes.
 
-### Justificación
+Application podrá utilizar los mecanismos de error definidos por la arquitectura del servicio, pero el Domain no debe depender de ellos.
 
-Permite que Application y API distingan correctamente entre:
+### Normalización de Productos Duplicados
+
+Los duplicados de productos no son un error de negocio.
+
+El flujo de Application consolida las cantidades correspondientes al mismo `productId` antes de construir los `OrderItem`.
+
+El dominio continúa siendo responsable de proteger la invariante de que un `productId` no aparezca más de una vez dentro de una `Order`.
+
+### Traducción hacia HTTP
+
+La traducción de los errores de Domain y Application al contrato HTTP corresponde al adapter de entrada HTTP.
+
+Conceptualmente:
 
 ```text
-regla de negocio incumplida
-```
-
-y:
-
-```text
-fallo técnico
+Domain
+  │
+  ├── InvalidOrderItem
+  └── InvalidOrder
+          │
+          ▼
+     Application
+          │
+          ├── ProductNotFound
+          ├── ProductInactive
+          ├── InsufficientStock
+          ├── OrderNotFound
+          ├── OrderNotCancellable
+          └── UnauthorizedOrderAccess
+                  │
+                  ▼
+             HTTP Adapter
+                  │
+                  ▼
+             ErrorResponse
 ```
 
 Los fallos de base de datos, RabbitMQ u otros componentes de infraestructura no deben convertirse artificialmente en errores de negocio.
+
+### Justificación
+
+Permite que Domain, Application e Infrastructure mantengan responsabilidades separadas.
+
+En particular:
+
+```text
+Domain
+  → reglas e invariantes del modelo
+
+Application
+  → reglas y decisiones del caso de uso
+
+Infrastructure
+  → fallos técnicos de componentes externos
+
+HTTP Adapter
+  → traducción al contrato HTTP
+```
+
+Esta separación evita que el dominio dependa de mecanismos de transporte o infraestructura y permite que las mismas reglas de dominio puedan utilizarse independientemente del mecanismo de entrada.
 
 ---
 

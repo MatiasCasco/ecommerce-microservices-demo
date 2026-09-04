@@ -393,20 +393,20 @@ order-service/
 
 ## Responsabilidad de cada documento
 
-| Documento | Responsabilidad |
-|---|---|
-| `README.md` | Visión general del servicio |
-| `domain.md` | Dominio, Aggregate, invariantes y comportamiento |
-| `use-case.md` | Casos de uso |
+| Documento                   | Responsabilidad |
+|-----------------------------|---|
+| `README.md`                 | Visión general del servicio |
+| `domain.md`                 | Dominio, Aggregate, invariantes y comportamiento |
+| `use-cases.md`              | Casos de uso |
 | `security-authorization.md` | Actor, autorización y ownership |
-| `api.md` | Contratos HTTP y DTOs |
-| `order-flow.md` | Flujos principales |
-| `product-catalog.md` | Modelo y límites de ProductCatalog |
-| `synchronization.md` | Estrategia de sincronización |
-| `event-consumption.md` | Consumo de eventos |
-| `decisions.md` | Decisiones y razones |
-| `roadmap.md` | Estado y orden de evolución |
-| `future.md` | Arquitectura futura |
+| `api.md`                    | Contratos HTTP y DTOs |
+| `order-flow.md`             | Flujos principales |
+| `product-catalog.md`        | Modelo y límites de ProductCatalog |
+| `synchronization.md`        | Estrategia de sincronización |
+| `event-consumption.md`      | Consumo de eventos |
+| `decisions.md`              | Decisiones y razones |
+| `roadmap.md`                | Estado y orden de evolución |
+| `future.md`                 | Arquitectura futura |
 
 La intención es evitar duplicar la documentación entre archivos.
 

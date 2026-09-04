@@ -234,23 +234,83 @@ Cada OrderItem debe cumplir:
 
 ---
 
+# Errores de Dominio
+
+Las invariantes del dominio forman parte del comportamiento del modelo.
+
+Cuando una operación sobre `Order` u `OrderItem` viola una invariante propia del dominio, el modelo debe rechazar la operación mediante una excepción propia del dominio.
+
+Los errores de dominio definidos para este propósito son:
+
+```text
+InvalidOrderItem
+InvalidOrder
+```
+
+`InvalidOrderItem` representa una violación de las invariantes propias de `OrderItem`, por ejemplo:
+
+```text
+quantity <= 0
+unitPrice <= 0
+```
+
+`InvalidOrder` representa una violación de las invariantes propias de `Order`, por ejemplo:
+
+```text
+Order sin items
+productId duplicado
+transición de estado no permitida
+```
+
+Estas excepciones pertenecen al dominio y deben ser independientes de cualquier mecanismo externo.
+
+El dominio no debe depender de:
+
+* `BusinessException`;
+* `ErrorCode`;
+* HTTP status;
+* Spring;
+* Controllers;
+* `GlobalExceptionHandler`;
+* mecanismos de persistencia.
+
+La traducción de estos errores al contrato externo de la aplicación corresponde a las capas superiores, particularmente al adapter HTTP cuando la operación se expone mediante REST.
+
+Conceptualmente:
+
+```text
+Order / OrderItem
+       │
+       │ viola una invariante
+       ▼
+Domain Exception
+       │
+       ├── InvalidOrder
+       └── InvalidOrderItem
+```
+
+La excepción expresa que el modelo no permite realizar la operación solicitada; no representa un error de transporte ni un fallo de infraestructura.
+
+---
+
 # Inmutabilidad del Historial
 
 Una vez creada una Order, no se modifica su información comercial.
 
 Son inmutables:
 
-- `productId`;
-- `productName`;
-- `unitPrice`;
-- `quantity`;
-- `subtotal`;
-- `total`;
-- `customerId`.
+* `productId`;
+* `productName`;
+* `unitPrice`;
+* `quantity`;
+* `subtotal`;
+* `total`;
+* `customerId`.
 
 La Order representa un documento histórico.
 
 El estado de la Order sí puede cambiar, pero únicamente mediante las transiciones permitidas por el Aggregate.
+
 
 ---
 

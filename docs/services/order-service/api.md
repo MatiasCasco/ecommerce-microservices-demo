@@ -369,20 +369,187 @@ Las transiciones del dominio se encuentran documentadas en `domain.md`.
 
 # Validaciones
 
-Las validaciones relacionadas con la creación de una Order incluyen:
+Las validaciones relacionadas con la creación de una Order se distribuyen según la responsabilidad de cada capa.
 
-- `Idempotency-Key` obligatorio;
-- cantidades válidas;
-- existencia del producto;
-- producto en estado `ACTIVE`;
-- stock conocido suficiente;
-- consolidación de productos duplicados.
+### Validaciones del Request
+
+Corresponden al contrato HTTP:
+
+* `Idempotency-Key` obligatorio;
+* estructura del request;
+* presencia de los campos requeridos;
+* formato y tipos de los campos;
+* restricciones de entrada definidas por el contrato HTTP.
+
+### Reglas de Application
+
+Corresponden a la coordinación del caso de uso:
+
+* existencia del producto en `ProductCatalog`;
+* producto en estado `ACTIVE`;
+* stock conocido suficiente;
+* ownership y autorización;
+* validación de idempotencia.
+
+### Reglas del Domain
+
+Corresponden a las invariantes del Aggregate:
+
+* `quantity > 0`;
+* `unitPrice > 0`;
+* `subtotal = unitPrice × quantity`;
+* Order con al menos un `OrderItem`;
+* unicidad de `productId` dentro de la Order;
+* total consistente con los subtotales;
+* transiciones de estado válidas;
+* inmutabilidad del contenido comercial.
+
+La consolidación de productos duplicados pertenece a Application y se realiza antes de construir el Aggregate.
 
 La validación de stock no representa una reserva de inventario.
 
-Las reglas de negocio del Aggregate se encuentran en `domain.md`.
+Las reglas del Aggregate se encuentran documentadas en `domain.md`.
 
 El detalle del caso de uso se documenta en `use-cases.md`.
+
+---
+
+# ProductCatalog
+
+Order Service utiliza `ProductCatalog` como proyección local del catálogo.
+
+```text
+Product Service
+      │
+      │ eventos
+      ▼
+ProductCatalog
+      │
+      ▼
+Order Service API
+```
+
+Order Service no consulta Product Service mediante REST durante la creación de una Order.
+
+Los detalles de la proyección se documentan en:
+
+* `product-catalog.md`;
+* `synchronization.md`;
+* `event-consumption.md`.
+
+---
+
+# Seguridad y Ownership
+
+La API requiere autenticación.
+
+La autenticación y autorización no forman parte del dominio de `Order`.
+
+Las reglas de seguridad y ownership se documentan en:
+
+```text
+security-authorization.md
+```
+
+Conceptualmente:
+
+```text
+ROLE_USER
+    │
+    └── opera sobre sus propias Orders
+
+ROLE_ADMIN
+    │
+    └── puede operar según las reglas de autorización definidas
+```
+
+El `customerId` de una Order no debe utilizarse para permitir que un `USER` opere sobre una Order perteneciente a otro Customer.
+
+---
+
+# Respuestas y Errores
+
+Las respuestas exitosas utilizan los DTOs definidos por cada operación:
+
+```text
+POST /orders
+    → OrderResponse
+
+GET /orders/{id}
+    → OrderResponse
+
+GET /orders
+    → Page<OrderSummaryResponse>
+
+PATCH /orders/{id}/cancel
+    → OrderResponse
+```
+
+Los errores se originan en distintas capas según la responsabilidad de la regla que fue incumplida.
+
+### Errores de Domain
+
+Las invariantes de `Order` y `OrderItem` pueden producir excepciones propias del dominio:
+
+```text
+InvalidOrder
+InvalidOrderItem
+```
+
+Estas excepciones no contienen información específica de HTTP y no dependen de `BusinessException`, `ErrorCode` ni de Spring.
+
+### Errores de Application
+
+El caso de uso puede producir errores relacionados con la coordinación de la operación:
+
+```text
+OrderNotFound
+OrderNotCancellable
+ProductNotFound
+ProductInactive
+InsufficientStock
+UnauthorizedOrderAccess
+```
+
+También pueden producirse errores relacionados con la idempotencia de `POST /orders`.
+
+### Traducción HTTP
+
+El adapter HTTP es responsable de traducir los errores de Domain y Application al contrato HTTP de Order Service.
+
+Conceptualmente:
+
+```text
+Domain
+  │
+  ├── InvalidOrder
+  └── InvalidOrderItem
+          │
+          ▼
+Application
+  │
+  ├── OrderNotFound
+  ├── OrderNotCancellable
+  ├── ProductNotFound
+  ├── ProductInactive
+  ├── InsufficientStock
+  └── UnauthorizedOrderAccess
+          │
+          ▼
+HTTP Adapter
+          │
+          ▼
+ErrorResponse
+```
+
+El contrato externo de errores debe mantener el mecanismo común de respuesta utilizado por la aplicación, incluyendo los elementos definidos por `common-lib` cuando corresponda.
+
+El dominio no conoce dicho contrato.
+
+El detalle definitivo de status codes, códigos de error y schemas pertenece a OpenAPI/Swagger y a la implementación del adapter HTTP.
+
+Los errores de infraestructura, como fallos de PostgreSQL o RabbitMQ, no deben representarse artificialmente como errores de negocio.
+
 
 ---
 
@@ -437,39 +604,6 @@ ROLE_ADMIN
 
 El `customerId` de una Order no debe utilizarse para permitir que un `USER` opere sobre una Order perteneciente a otro Customer.
 
----
-
-# Respuestas y Errores
-
-Las respuestas exitosas utilizan los DTOs definidos por cada operación:
-
-```text
-POST /orders
-    → OrderResponse
-
-GET /orders/{id}
-    → OrderResponse
-
-GET /orders
-    → Page<OrderSummaryResponse>
-
-PATCH /orders/{id}/cancel
-    → OrderResponse
-```
-
-Los errores serán manejados mediante el mecanismo centralizado definido para Order Service y `common-lib`.
-
-Entre los errores funcionales relevantes se encuentran:
-
-- `OrderNotFound`;
-- `OrderNotCancellable`;
-- `ProductNotFound`;
-- `ProductInactive`;
-- `InsufficientStock`;
-- `InvalidOrderItem`;
-- errores relacionados con `Idempotency-Key`.
-
-El contrato técnico definitivo de status codes, schemas y error responses corresponde a OpenAPI/Swagger y a la documentación de errores.
 
 ---
 

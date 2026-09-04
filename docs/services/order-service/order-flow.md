@@ -228,12 +228,11 @@ ProductCatalog
 
 # 4. Validación de productos
 
-Para cada producto normalizado se verifica:
+Para cada producto normalizado, Application verifica las reglas que dependen de `ProductCatalog`:
 
-- existencia;
-- estado `ACTIVE`;
-- stock conocido suficiente;
-- cantidad válida.
+* existencia;
+* estado `ACTIVE`;
+* stock conocido suficiente.
 
 Conceptualmente:
 
@@ -244,18 +243,34 @@ Requested Product
        │
        ├── ¿Está ACTIVE?
        │
-       ├── ¿Cantidad válida?
-       │
        └── ¿Stock conocido suficiente?
               │
               ▼
          Producto válido
 ```
 
-Si alguna validación falla:
+La cantidad solicitada forma parte de la entrada que posteriormente será utilizada para construir el `OrderItem`.
+
+La validez de la cantidad como invariante del dominio:
+
+```text
+quantity > 0
+```
+
+es responsabilidad de `OrderItem` y se protege durante su construcción.
+
+Por lo tanto, Application no duplica la regla `quantity > 0` como una regla propia del caso de uso.
+
+Si una validación de Application falla:
 
 ```text
 No se crea la Order.
+```
+
+Si una invariante del dominio falla durante la construcción del Aggregate:
+
+```text
+No se construye un Aggregate inválido.
 ```
 
 La validación de stock utiliza el `availableStock` conocido por `ProductCatalog`.
@@ -440,15 +455,59 @@ api.md
 
 # Flujo ante errores
 
-## Error de validación de negocio
+Los errores se manejan según la responsabilidad de la capa en la que se origina la condición.
 
-Si una validación de negocio falla:
+```text
+API
+ │
+ ├── errores del contrato HTTP
+ │
+ ▼
+Application
+ │
+ ├── errores del caso de uso
+ │
+ ▼
+Domain
+ │
+ └── violaciones de invariantes
+```
+
+## Error de validación del Request
+
+Si el request no cumple el contrato HTTP:
 
 ```text
 Request
    │
    ▼
-Validación
+Validación HTTP
+   │
+   ▼
+ERROR
+   │
+   ▼
+No se ejecuta el caso de uso
+```
+
+Ejemplos:
+
+* `Idempotency-Key` ausente;
+* estructura inválida del request;
+* campos requeridos ausentes;
+* formato inválido de los datos.
+
+Estos errores pertenecen al contrato de entrada y no son invariantes del dominio.
+
+## Error de Application
+
+Si una regla necesaria para coordinar el caso de uso no puede cumplirse:
+
+```text
+Request
+   │
+   ▼
+Application
    │
    ▼
 ERROR
@@ -459,12 +518,59 @@ No se crea Order
 
 Ejemplos:
 
-- producto inexistente;
-- producto `INACTIVE`;
-- stock conocido insuficiente;
-- cantidad inválida;
-- request inválido;
-- Order no cancelable.
+* producto inexistente;
+* producto `INACTIVE`;
+* stock conocido insuficiente;
+* Order inexistente;
+* Order no cancelable;
+* acceso no autorizado;
+* conflicto de idempotencia.
+
+Estos errores pertenecen a Application porque requieren información o decisiones externas al Aggregate.
+
+## Error de Domain
+
+Durante la construcción o modificación del Aggregate, una invariante puede ser violada:
+
+```text
+Application
+   │
+   ▼
+Order / OrderItem
+   │
+   ▼
+Violación de invariante
+   │
+   ▼
+Domain Exception
+   │
+   ▼
+No se crea / modifica el Aggregate
+```
+
+Ejemplos:
+
+```text
+InvalidOrderItem
+InvalidOrder
+```
+
+`InvalidOrderItem` puede producirse cuando se viola una invariante propia de `OrderItem`, por ejemplo:
+
+```text
+quantity <= 0
+unitPrice <= 0
+```
+
+`InvalidOrder` puede producirse cuando se viola una invariante propia de `Order`, por ejemplo:
+
+```text
+Order sin items
+productId duplicado
+transición de estado no permitida
+```
+
+Estas excepciones pertenecen al dominio y no conocen HTTP, Spring, `BusinessException` ni `ErrorCode`.
 
 ## Idempotency-Key ya utilizada
 
@@ -474,24 +580,26 @@ Si la clave ya existe:
 Idempotency-Key
       │
       ▼
-¿Existe?
-  │       │
-  │ NO    │ SÍ
-  ▼       ▼
+   ¿Existe?
+   │       │
+   │ NO    │ SÍ
+   ▼       ▼
 continuar  comparar request
               │
-       ┌──────┴──────┐
-       ▼             ▼
-     mismo         diferente
-       │             │
-       ▼             ▼
-resultado          ERROR
-original
+        ┌─────┴─────┐
+        ▼           ▼
+      mismo      diferente
+        │           │
+        ▼           ▼
+ resultado        ERROR
+ original
 ```
 
 Si el request es el mismo, se devuelve el resultado de la operación original y no se crea otra Order.
 
 Si el request es diferente, se rechaza la solicitud.
+
+El conflicto por reutilización de una `Idempotency-Key` pertenece al flujo de Application y no constituye una invariante del Aggregate.
 
 ## Error de persistencia
 
@@ -508,6 +616,10 @@ BEGIN TRANSACTION
 ```
 
 No se debe considerar creada una Order cuya transacción no haya finalizado correctamente.
+
+Los fallos de infraestructura no deben convertirse artificialmente en errores de negocio.
+
+La traducción de los errores de Domain y Application al contrato HTTP corresponde al adapter HTTP.
 
 ---
 

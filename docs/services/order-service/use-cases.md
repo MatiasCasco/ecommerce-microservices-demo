@@ -77,14 +77,13 @@ Un `ADMIN` puede crear una Order para un customer especificado.
 - El actor está autenticado.
 - El actor está autorizado para crear una Order.
 - `Idempotency-Key` está presente.
-- Los items están presentes.
-- Cada item tiene una cantidad válida.
+- Los items están presentes en el request.
 - El customer requerido por el caso de uso es válido.
 - Cada producto existe en `ProductCatalog`.
 - Cada producto está `ACTIVE`.
 - Existe stock suficiente según `ProductCatalog`.
 
-La validación de customer no implica actualmente una `CustomerProjection`; esa evolución se contempla como una posibilidad futura.
+Las invariantes propias de `Order` y `OrderItem` son protegidas por el dominio durante la construcción del Aggregate.
 
 ---
 
@@ -239,6 +238,15 @@ El dominio:
 
 La generación del `id` incremental pertenece a la persistencia y es gestionada por la base de datos.
 
+Las violaciones de invariantes del dominio producen excepciones propias del dominio.
+
+Por ejemplo:
+
+- `InvalidOrderItem` cuando un `OrderItem` recibe una cantidad o precio inválido;
+- `InvalidOrder` cuando la construcción o modificación de `Order` viola una invariante del Aggregate.
+
+Estas excepciones pertenecen al dominio y no dependen de HTTP, Spring, `BusinessException`, `ErrorCode` ni otros mecanismos de infraestructura o transporte.
+
 ---
 
 ## Persistencia
@@ -298,21 +306,53 @@ Si la misma `Idempotency-Key` se utiliza con un request diferente, la operación
 
 ## Errores relevantes
 
-El caso de uso debe rechazar la operación cuando:
+### Errores de Request / API
+
+La capa HTTP rechaza la operación cuando:
+
+- falta `Idempotency-Key`;
+- el request tiene una estructura inválida;
+- faltan campos requeridos;
+- el request contiene datos con formato inválido.
+
+### Errores de Application
+
+El caso de uso rechaza la operación cuando:
 
 - el actor no está autorizado;
 - un `USER` intenta utilizar otro `customerId`;
-- falta `Idempotency-Key`;
-- faltan items;
-- la cantidad es inválida;
 - el producto no existe;
 - el producto está `INACTIVE`;
 - el stock conocido es insuficiente;
 - una `Idempotency-Key` existente se utiliza con un request diferente.
 
+### Errores de Domain
+
+Durante la construcción del Aggregate, el dominio rechaza cualquier estado que viole sus invariantes.
+
+Por ejemplo:
+
+- `OrderItem` con cantidad menor o igual a cero;
+- `OrderItem` con precio menor o igual a cero;
+- construcción de una `Order` sin items;
+- `Order` con `productId` duplicado;
+- transición de estado inválida.
+
+Estos errores se representan mediante excepciones propias del dominio, como `InvalidOrderItem` e `InvalidOrder`.
+
+El caso de uso no duplica estas reglas ni las convierte en errores de infraestructura.
+
+### Idempotencia
+
 Una `Idempotency-Key` repetida con el mismo request no es un error: representa el mismo intento lógico y devuelve el resultado original.
 
+Una `Idempotency-Key` existente utilizada con un request diferente constituye un error de Application.
+
+### Persistencia
+
 Si falla la persistencia, la transacción debe revertirse.
+
+Un fallo de persistencia no constituye un error de negocio ni una excepción del dominio.
 
 ---
 
@@ -546,6 +586,10 @@ CANCELLED
 ```
 
 Una Order en `PAID` no puede cancelarse mediante la transición definida actualmente.
+
+Si la transición no es válida, el Aggregate produce una excepción propia del dominio.
+
+Application no modifica ni interpreta directamente el estado interno de la Order para forzar la transición.
 
 ```text
 PAID
